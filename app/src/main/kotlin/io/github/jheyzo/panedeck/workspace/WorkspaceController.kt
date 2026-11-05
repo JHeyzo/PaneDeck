@@ -94,6 +94,12 @@ class WorkspaceController(
         return windowController.openExternalInMain(intent).isSuccess
     }
 
+    /** Compare rounds: sequenced external (deep-link) launches. Returns false if the sequence could not start. */
+    fun openSearches(intents: List<Intent>, complete: (Result<Unit>) -> Unit): Boolean {
+        if (state !is WorkspaceState.Active) return false
+        return windowController.openSearches(intents, complete).isSuccess
+    }
+
     fun openFromLauncher(intent: Intent): Boolean {
         if (state !is WorkspaceState.Active) return false
         return windowController.openFromLauncher(intent).isSuccess

@@ -38,6 +38,7 @@ class NeXtepWindowController(
     private val mainTaskPresenter: MainTaskPresentationCoordinator,
     private val onSidebarSideRequested: (SidebarSide) -> Unit,
     private val onSettingsRequested: () -> Unit,
+    private val onCompareRequested: () -> Unit = {},
     private val onExitRequested: () -> Unit,
     private val onViewportChanged: () -> Unit,
 ) {
@@ -316,6 +317,14 @@ class NeXtepWindowController(
         slotCoordinator?.openExternalInMain(intent)
             ?: Result.failure(IllegalStateException("VirtualDisplay slot unavailable"))
 
+    /** Compare rounds: sequenced external (deep-link) launches, first to main, rest to slots. */
+    fun openSearches(
+        intents: List<Intent>,
+        complete: (Result<Unit>) -> Unit,
+    ): Result<Unit> =
+        slotCoordinator?.openSearches(intents, complete)
+            ?: Result.failure(IllegalStateException("VirtualDisplay slot unavailable"))
+
     fun onTasksChanged() = slotCoordinator?.onTasksChanged()
 
     internal fun energySnapshot() = android.os.Bundle().apply {
@@ -464,6 +473,7 @@ class NeXtepWindowController(
                 },
                 onSidebarSideRequested = onSidebarSideRequested,
                 onSettingsRequested = onSettingsRequested,
+                onCompareRequested = onCompareRequested,
                 onExitRequested = onExitRequested,
                 onFrostStrengthChanged = { strength ->
                     if (frostStrength != strength) {

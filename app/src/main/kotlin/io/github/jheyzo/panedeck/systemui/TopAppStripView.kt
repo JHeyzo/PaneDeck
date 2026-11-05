@@ -37,6 +37,7 @@ class TopAppStripView(
     private val onMediaClicked: (android.media.session.MediaController) -> Unit,
     private val onSidebarSideRequested: (SidebarSide) -> Unit,
     private val onSettingsRequested: () -> Unit,
+    private val onCompareRequested: () -> Unit = {},
     private val onExitRequested: () -> Unit,
     private val onFrostStrengthChanged: (Int) -> Unit,
     private val onAppDragStarting: (View, Intent) -> Boolean,
@@ -126,6 +127,10 @@ class TopAppStripView(
     private val settingsButton = GearButton(context).apply {
         contentDescription = AppLanguage.string(context, R.string.open_settings)
         setOnClickListener { onSettingsRequested() }
+    }
+    private val compareButton = CompareButton(context).apply {
+        contentDescription = AppLanguage.string(context, R.string.compare_title)
+        setOnClickListener { onCompareRequested() }
     }
     private var videoEmbedded = false
     private var videoCaptureAvailable = false
@@ -222,6 +227,7 @@ class TopAppStripView(
         rightButton.contentDescription = AppLanguage.string(context, R.string.window_side_right)
         exitButton.contentDescription = AppLanguage.string(context, R.string.window_exit)
         settingsButton.contentDescription = AppLanguage.string(context, R.string.open_settings)
+        compareButton.contentDescription = AppLanguage.string(context, R.string.compare_title)
         updateVideoActionDescription()
         dismissHint.text = AppLanguage.string(context, R.string.window_drop_background)
         mediaControl.refreshLanguage()
@@ -420,6 +426,10 @@ class TopAppStripView(
             LinearLayout.LayoutParams(buttonSize, buttonSize),
         )
         addView(
+            compareButton,
+            LinearLayout.LayoutParams(buttonSize, buttonSize),
+        )
+        addView(
             settingsButton,
             LinearLayout.LayoutParams(buttonSize, buttonSize),
         )
@@ -597,6 +607,19 @@ private class GearButton(context: Context) : ActionGlyphButton(context) {
         ringPath.addCircle(cx, cy, gearRadius * 0.28f, Path.Direction.CW)
         canvas.drawPath(ringPath, paint)
         paint.style = Paint.Style.STROKE
+    }
+}
+
+private class CompareButton(context: Context) : ActionGlyphButton(context) {
+    override fun drawGlyph(canvas: Canvas, paint: Paint, cx: Float, cy: Float, radius: Float) {
+        // Magnifier: a circle with a handle, drawn in the top bar's glyph style.
+        val circleRadius = radius * 0.62f
+        val centerX = cx - radius * 0.12f
+        val centerY = cy - radius * 0.12f
+        canvas.drawCircle(centerX, centerY, circleRadius, paint)
+        val handleX = centerX + circleRadius * 0.7f
+        val handleY = centerY + circleRadius * 0.7f
+        canvas.drawLine(handleX, handleY, cx + radius * 0.95f, cy + radius * 0.95f, paint)
     }
 }
 

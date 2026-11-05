@@ -204,6 +204,7 @@ object SystemUiRuntime {
                 mainTaskPresenter = mainTaskPresenter,
                 onSidebarSideRequested = ::setSidebarSideFromTopBar,
                 onSettingsRequested = ::openSettingsFromTopBar,
+                onCompareRequested = ::showCompareDialog,
                 onExitRequested = ::closeWorkspaceFromGesture,
                 onViewportChanged = ::reconfigureForViewport,
             )
@@ -404,6 +405,38 @@ object SystemUiRuntime {
         }
     }
 
+    /**
+     * Shared compare entry: the Settings-page broadcast and the
+     * in-workspace dialog both land here. Activates the workspace if
+     * needed, then runs one compare round through openSearches.
+     */
+    private fun runCompare(
+        mode: io.github.jheyzo.panedeck.compare.CompareIntents.Mode,
+        query: String,
+    ): Boolean {
+        if (query.isBlank()) return false
+        val active = workspaceController.isActive() || workspaceController.setActive(true)
+        if (!active) return false
+        return io.github.jheyzo.panedeck.compare.CompareRunner(
+            openSearches = { intents, complete ->
+                workspaceController.openSearches(intents, complete)
+            },
+            canOpen = { target ->
+                applicationContext.packageManager.resolveActivity(
+                    target, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY,
+                ) != null
+            },
+        ).run(mode, query)
+    }
+
+    /** In-workspace compare dialog, opened from the top bar. */
+    private fun showCompareDialog() {
+        if (!::workspaceController.isInitialized) return
+        CompareDialog(applicationContext,
+            onSearch = { mode, query -> runCompare(mode, query) },
+        ).show()
+    }
+
     private fun openSettingsFromTopBar() {
         val intent = applicationContext.packageManager
             .getLaunchIntentForPackage(TriggerBroadcastContract.MODULE_PACKAGE)
@@ -534,17 +567,7 @@ object SystemUiRuntime {
                 val mode = if (intent.getStringExtra(TriggerBroadcastContract.EXTRA_COMPARE_MODE) == "DELIVERY")
                     io.github.jheyzo.panedeck.compare.CompareIntents.Mode.DELIVERY
                 else io.github.jheyzo.panedeck.compare.CompareIntents.Mode.SHOPPING
-                val active = workspaceController.isActive() || workspaceController.setActive(true)
-                if (!active) false
-                else io.github.jheyzo.panedeck.compare.CompareRunner(
-                    openMain = { workspaceController.openExternalInMain(it) },
-                    launchSlot = { target, slot -> workspaceController.launchInSlot(target, slot) },
-                    canOpen = { target ->
-                        applicationContext.packageManager.resolveActivity(
-                            target, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY,
-                        ) != null
-                    },
-                ).run(mode, query)
+                runCompare(mode, query)
             }
         }
         else -> false

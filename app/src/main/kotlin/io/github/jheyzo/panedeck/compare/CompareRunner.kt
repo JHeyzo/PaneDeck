@@ -1,71 +1,79 @@
 package io.github.jheyzo.panedeck.compare
 
 import android.content.Intent
-import android.os.Handler
-import android.os.Looper
 import io.github.jheyzo.panedeck.logging.NeXtepLog
+import io.github.jheyzo.panedeck.workspace.WorkspaceLaunchSequence
 
 /**
- * Runs one compare round on the main thread, one window at a time.
+ * Runs one compare round through SlotTaskCoordinator.openSearches
+ * (ported from Panes 3.0.5): deep links are resolved with
+ * WorkspaceIntentResolver (no CATEGORY_LAUNCHER, data preserved),
+ * the first target goes to the main window and the rest to slots
+ * chosen by WorkspaceSearchPlacement (existing matches first, then
+ * empty slots), and each launch is observed ready at its destination
+ * before the next one starts. No fixed 900 ms spacing any more.
  *
- * Upstream workspace is 1 main + 3 slots, so a round is at most 4 apps:
- * the first installed target goes to the main window (external deep link,
- * no launcher category), the rest go to slots 0, 1, 2 in order.
- * A launch failure for one app is logged and skipped, not fatal to the
- * round; a round with no installed target at all does nothing.
- *
- * Launches are spaced out because a slot launch fails while a previous
- * transition is still pending. The delay is a heuristic, not a guarantee:
- * on a slow device a slot may still report pending, in which case the
- * user retries after the workspace settles. Whether a slot deep link
- * survives upstream's launcher-category normalisation is unverified
- * until on-device testing (see DESIGN_COMPARE.md).
+ * Per-target fallback, in order: custom scheme; for Meituan, the
+ * standalone takeout app's custom scheme (as in Panes 3.0.5); for
+ * shopping targets, the https fallback in CompareIntents (package-
+ * pinned to the same app, so it stays in-app via App Links when the
+ * app handles that host). A target with no resolvable entry is
+ * skipped; a round with no installed target at all does nothing.
+ * A launch failure stops the sequence (Panes behaviour) and is
+ * reported with the failed index and how many launches completed;
+ * launches that already completed are kept, not rolled back.
  */
 internal class CompareRunner(
-    private val openMain: (Intent) -> Boolean,
-    private val launchSlot: (Intent, Int) -> Boolean,
+    private val openSearches: (List<Intent>, (Result<Unit>) -> Unit) -> Boolean,
     private val canOpen: (Intent) -> Boolean,
-    private val handler: Handler = Handler(Looper.getMainLooper()),
 ) {
     fun run(mode: CompareIntents.Mode, query: String): Boolean {
         val requested = runCatching { CompareIntents.searches(mode, query) }.getOrNull()
             ?: return false
-        // Meituan fallback, as in Panes 3.0.5: the standalone takeout app
-        // if the main Meituan search entry does not resolve.
         val available = requested.mapNotNull { target ->
-            if (canOpen(target.intent)) target
-            else if (target.intent.`package` == "com.sankuai.meituan") {
-                val fallback = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(
-                    "meituanwaimai://waimai.meituan.com/search?query=${android.net.Uri.encode(query.trim())}",
-                )).setPackage("com.sankuai.meituan.takeoutnew").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                if (canOpen(fallback)) target.copy(intent = fallback) else null
-            } else null
+            when {
+                canOpen(target.intent) -> target.intent
+                target.intent.`package` == "com.sankuai.meituan" -> {
+                    val fallback = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(
+                        "meituanwaimai://waimai.meituan.com/search?query=${android.net.Uri.encode(query.trim())}",
+                    )).setPackage("com.sankuai.meituan.takeoutnew").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    if (canOpen(fallback)) {
+                        NeXtepLog.info("compare", "Meituan main entry unresolvable; using takeout app")
+                        fallback
+                    } else null
+                }
+                target.httpsFallback != null && canOpen(target.httpsFallback) -> {
+                    NeXtepLog.info("compare", "Custom scheme unresolvable for ${target.name}; using https fallback")
+                    target.httpsFallback
+                }
+                else -> null
+            }
         }.take(4)
         if (available.isEmpty()) {
             NeXtepLog.warn("compare", "No installed app supports this compare mode")
             return false
         }
-        val steps = ArrayDeque<() -> Boolean>()
-        steps += { openMain(available[0].intent) }
-        available.drop(1).forEachIndexed { index, target ->
-            steps += { launchSlot(target.intent, index) }
-        }
-        var stepIndex = 0
-        val step = object : Runnable {
-            override fun run() {
-                if (steps.isEmpty()) return
-                val target = available[stepIndex]
-                val ok = runCatching { steps.removeFirst().invoke() }.getOrDefault(false)
-                if (!ok) NeXtepLog.warn("compare", "Launch failed app=${target.name} step=$stepIndex")
-                stepIndex++
-                if (steps.isNotEmpty()) handler.postDelayed(this, STEP_DELAY_MS)
+        val started = openSearches(available) { result ->
+            result.onSuccess {
+                NeXtepLog.info("compare", "Compare round completed targets=${available.size}")
+            }.onFailure { error ->
+                val failure = error as? WorkspaceLaunchSequence.Failure
+                if (failure != null) {
+                    NeXtepLog.warn(
+                        "compare",
+                        "Compare round stopped index=${failure.index} completed=${failure.completed} " +
+                            "stage=${failure.stage}",
+                        failure.cause,
+                    )
+                } else {
+                    NeXtepLog.warn("compare", "Compare round failed", error)
+                }
             }
         }
-        handler.post(step)
+        if (!started) {
+            NeXtepLog.warn("compare", "Compare sequence could not start")
+            return false
+        }
         return true
-    }
-
-    private companion object {
-        const val STEP_DELAY_MS = 900L
     }
 }

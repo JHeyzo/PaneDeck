@@ -12,6 +12,10 @@ import io.github.jheyzo.panedeck.R
 import io.github.jheyzo.panedeck.config.AppLanguage
 import io.github.jheyzo.panedeck.framework.ActivityTaskManagerCompat
 import io.github.jheyzo.panedeck.framework.TaskSurfaceCompat
+import io.github.jheyzo.panedeck.framework.WorkspaceIntentResolver
+import io.github.jheyzo.panedeck.workspace.WorkspaceLaunchSequence
+import io.github.jheyzo.panedeck.workspace.WorkspaceSearchPlacement
+import io.github.jheyzo.panedeck.workspace.WorkspaceSearchReadiness
 import io.github.jheyzo.panedeck.framework.UserTargetedActivityLauncher
 import io.github.jheyzo.panedeck.framework.WindowContainerTransactionCompat
 import io.github.jheyzo.panedeck.logging.NeXtepLog
@@ -293,8 +297,126 @@ class SlotTaskCoordinator(
 
     fun launchInSlot(intent: Intent, slotIndex: Int = 0): Result<Unit> {
         ensureMainThread()
-        return assignIntent(slotIndex, intent)
+        return assignIntent(slotIndex, intent, external = false)
     }
+
+    /**
+     * Compare / search launch into a slot: the intent is a deep link, so
+     * it is resolved with WorkspaceIntentResolver (Paned from Panes 3.0.5),
+     * which keeps the data URI and adds only FLAG_ACTIVITY_NEW_TASK.
+     * Unlike [assignIntent]'s launcher path, no CATEGORY_LAUNCHER is
+     * added and no launcher Activity is forced, so the target app's
+     * router can take the search query to its search page.
+     */
+    fun launchExternalInSlot(intent: Intent, slotIndex: Int): Result<Unit> {
+        ensureMainThread()
+        return assignIntent(slotIndex, intent, external = true)
+    }
+
+    /**
+     * Sequenced compare launch, adapted from Panes 3.0.5
+     * SlotTaskCoordinator.openSearches: the first source goes to the main
+     * window (via the existing external main path), the rest go to slots
+     * chosen by WorkspaceSearchPlacement (existing matches first, then
+     * empty slots; NoSpace if the round does not fit). Each launch is
+     * observed at its destination with WorkspaceSearchReadiness before
+     * the next one starts, instead of a fixed delay. At most 4 sources
+     * (1 main + 3 slots); [complete] is invoked once with success, or
+     * with a WorkspaceLaunchSequence.Failure naming the failed index and
+     * how many launches had already completed.
+     */
+    fun openSearches(sources: List<Intent>, complete: (Result<Unit>) -> Unit): Result<Unit> {
+        ensureMainThread()
+        if (!active || suspended) {
+            return Result.failure(IllegalStateException("Workspace is inactive"))
+        }
+        if (sources.isEmpty() || sources.size > 4) {
+            return Result.failure(IllegalArgumentException("Compare round needs 1..4 targets"))
+        }
+        val intents = sources.map { source ->
+            WorkspaceIntentResolver.resolve(packageManager, source)
+                ?: return Result.failure(IllegalArgumentException("No supported search Activity"))
+        }
+        val keys = intents.map { intent ->
+            checkNotNull(intent.component).packageName + "@" +
+                io.github.jheyzo.panedeck.framework.TaskInfoCompat.userIdentifier(
+                    intent.targetUser() ?: android.os.Process.myUserHandle())
+        }
+        val slotPackages = slotRecords.map { record ->
+            when (val state = record.state) {
+                is SlotState.Occupied -> state.component.packageName + "@" +
+                    taskRepository.findTask(state.taskId)?.userId
+                is SlotState.Ready -> if (record.pendingComponent == null &&
+                    record.retainedTaskId == null) null else "reserved"
+                else -> "unavailable"
+            }
+        }
+        val unavailable = slotRecords.indices.filter { index ->
+            val record = slotRecords[index]
+            record.pendingComponent != null ||
+                record.state !is SlotState.Occupied && record.state !is SlotState.Ready ||
+                record.state is SlotState.Ready && record.retainedTaskId != null
+        }.toSet()
+        val destinations = try {
+            WorkspaceSearchPlacement.plan(keys, slotPackages, null, unavailable)
+        } catch (error: WorkspaceSearchPlacement.NoSpace) {
+            return Result.failure(error)
+        }
+        val requests = intents.mapIndexed { index, intent ->
+            SearchRequest(intent, if (index == 0) null else destinations[index - 1],
+                if (index == 0) null else slots.getOrNull(destinations[index - 1])?.displayId())
+        }
+        val readiness = requests.associateWith { WorkspaceSearchReadiness() }
+        val sequence = WorkspaceLaunchSequence<SearchRequest>(
+            schedule = { delay, action -> handler.postDelayed(action, delay) },
+            start = { request ->
+                if (request.slot == null) openExternalInMain(request.intent).getOrThrow()
+                else launchExternalInSlot(request.intent, request.slot).getOrThrow()
+            },
+            ready = { request ->
+                val component = checkNotNull(request.intent.component)
+                val task = taskRepository.findTaskForComponent(
+                    component, request.intent.targetUser(), allowPackageFallback = true)
+                val presentable = task != null && if (request.slot == null) {
+                    task.displayId == Display.DEFAULT_DISPLAY
+                } else {
+                    task.displayId == request.displayId
+                }
+                checkNotNull(readiness[request]).observe(
+                    task?.taskId, task?.component?.flattenToString(), presentable,
+                    android.os.SystemClock.uptimeMillis(),
+                    taobaoProducts = request.intent.`package` == "com.taobao.taobao",
+                )
+            },
+            commit = { /* openExternalInMain / assignIntent already committed the placement */ },
+            busy = { running ->
+                NeXtepLog.info("compare_launch", "Search sequence running=$running")
+            },
+            prepare = { pending ->
+                if (!active || suspended || transitionInProgress || recentSelectionPending) false
+                else {
+                    pending.forEach { request ->
+                        request.slot?.let { index ->
+                            if (slots.getOrNull(index)?.displayId() == null) {
+                                slots[index].activate()
+                            }
+                        }
+                    }
+                    reconcile("prepare search destinations")
+                    pending.all { request ->
+                        request.slot == null || slots.getOrNull(request.slot)?.displayId() != null
+                    }
+                }
+            },
+        )
+        return sequence.begin(requests, complete)
+    }
+
+    private data class SearchRequest(
+        val intent: Intent,
+        val slot: Int?,
+        val displayId: Int?,
+    )
 
     fun openInMain(sourceIntent: Intent, autoMinimizeCurrent: Boolean = false): Result<Unit> {
         ensureMainThread()
@@ -865,12 +987,19 @@ class SlotTaskCoordinator(
         setState(index, state, "drag exchange")
     }
 
-    private fun assignIntent(slotIndex: Int, sourceIntent: Intent): Result<Unit> {
+    private fun assignIntent(slotIndex: Int, sourceIntent: Intent, external: Boolean = false): Result<Unit> {
         if (!validActiveSlot(slotIndex)) {
             return Result.failure(IllegalStateException("Slot $slotIndex is unavailable"))
         }
-        val normalized = normalizeLaunchIntent(sourceIntent)
-            ?: return Result.failure(IllegalArgumentException("Drop does not resolve to an App"))
+        // external = true (compare deep links): resolve with
+        // WorkspaceIntentResolver, which preserves the data URI and adds
+        // no launcher category. external = false keeps the original
+        // launcher normalisation for drops / top-app launches.
+        val normalized = if (external) {
+            WorkspaceIntentResolver.resolve(packageManager, sourceIntent)
+        } else {
+            normalizeLaunchIntent(sourceIntent)
+        } ?: return Result.failure(IllegalArgumentException("Drop does not resolve to an App"))
         val component = checkNotNull(normalized.component)
         if (slotRecords[slotIndex].pendingComponent != null) {
             return Result.failure(IllegalStateException("Slot $slotIndex launch is pending"))

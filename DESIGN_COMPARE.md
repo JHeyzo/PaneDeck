@@ -152,3 +152,90 @@ ColorOS 适配是上游原生的：ColorOS 16/17、主力机 OnePlus PLK110，
 - 缺：比价应用列表、主力机型、ColorOS 版本。
 - 有了这三项，才能写各应用的搜索跳转表并开始改代码；
   在此之前只做设计，不编造跳转格式、不出包。
+
+## 9. 比价 v2（2026-11-05，格窗 3.0.5 启动路移植，用户拍板）
+
+路线定案：主路用格窗 3.0.5 的 openSearches + WorkspaceIntentResolver，
+https 兜底，复制跳转（流体云）不当主路，上游 launchInSlot 的
+launcher-category 路不当主路（只留给顶栏/拖拽开应用首页）。
+
+移植来源：~/workspace/forks_detail/zealler9560（格窗 3.0.5，
+Apache-2.0，署名保留在各文件头与本节）。上游 2.1.0 没有以下
+文件，均为格窗新增后移植：
+- framework/WorkspaceIntentResolver.kt：原样移植，只改包名。
+  VIEW 意图解析到目标 App 自己的路由 Activity，不加
+  CATEGORY_LAUNCHER、不动 data，只加 NEW_TASK；解析不到
+  （或解析到系统选择器）即不可打开。
+- workspace/WorkspaceSearchPlacement.kt：原样移植，只改包名
+  与上限：1..4（1 大窗 + 3 小窗），格窗是 1..5。另有一处
+  行为改动：格窗在没有空槽时回落到已占用的槽（可替换），
+  本版不回落——PaneDeck 的槽启动不能替换已占用的槽，
+  塞不下就报 NoSpace，不静默替换用户正在看的应用。
+- workspace/WorkspaceLaunchSequence.kt：原样移植，只改包名。
+  通用定序器：先 prepare（窗口就绪），再逐个 start，
+  每个在目标位置观察到就绪后才启动下一个，失败即停并
+  报失败下标与已完成数。
+- workspace/WorkspaceSearchReadiness.kt：原样移植，只改包名。
+  路由 Activity（京东 InterfaceActivity、抖音 DeepLinkHandler、
+  淘宝 MainSearchRoute、淘宝 BrowserActivity）短暂出现不算
+  就绪，同一非路由任务在目标位置稳定 600ms 才算就绪。
+- display/SlotTaskCoordinator.openSearches()：按格窗的
+  openSearches 改写，未全盘照搬格窗的 appLaunch 机器
+  （上游 2.1.0 没有那套 LaunchRequest/start/observe/commit
+  机器，重写它等于重构整个槽启动器，风险远大于收益）。
+  本版用已移植的 WorkspaceLaunchSequence 驱动：start =
+  大窗走现有 openExternalInMain、小窗走新增的
+  launchExternalInSlot；ready = 用 WorkspaceSearchReadiness
+  查 TaskRepository；commit = 空操作（openExternalInMain /
+  assignIntent 本身已提交落位）；prepare = 激活目标槽的
+  display 并 reconcile。
+- display/SlotTaskCoordinator.launchExternalInSlot()：新增。
+  复用 assignIntent 的全部落位逻辑（已存在任务、已占
+  用槽、pending、swap），只把归一化从 normalizeLaunchIntent
+  换成 WorkspaceIntentResolver。原 assignIntent（launcher
+  路）不动，其他调用方（拖拽、顶栏）行为不变。
+- compare/CompareRunner.kt：重写。不再用 900ms 固定间隔
+  逐个调 openExternalInMain / launchInSlot，改为一次调
+  workspaceController.openSearches()，失败按
+  WorkspaceLaunchSequence.Failure 记日志（下标、已完成数、
+  阶段），已完成的保留、不回滚。
+- compare/CompareIntents.kt：每家购物目标加 httpsFallback：
+  淘宝 https://s.taobao.com/search?q=、京东
+  https://search.jd.com/Search?keyword=&enc=utf-8、拼多多
+  https://mobile.yangkeduo.com/search_result.html?search_key=、
+  抖音 https://www.douyin.com/search/{词}?type=general
+  （通用搜索非商城专属，可能需点“商品”tab）。
+  以上四条 2026-11-05 用公开资料核对过，不是凭空编的。
+  外卖三家无可验证的 https 搜索链接，不设 https 兜底；
+  美团保留独立外卖 App 的自定义 scheme 回退。
+  https 兜底只在自定义 scheme 不可解析或启动失败时用，
+  且限定同一包名（App Links 进 App）；落到浏览器时淘宝/
+  拼多多网页搜索可能撞登录墙，这是兜底本身的局限。
+- 入口：新增 systemui/CompareDialog.kt（按格窗
+  WorkbenchToolsController.showSearch 改写：输词、购物/外卖
+  切换、已安装应用行变暗提示；格窗的主题外观与支付 UI
+  未移植，用普通 AlertDialog + SystemUiWindowTypeResolver
+  的窗口类型）。顶栏 TopAppStripView 的 actionRow 在视频
+  按钮与设置按钮之间加了一个放大镜按钮，点开即此弹窗；
+  NeXtepWindowController 与 SystemUiRuntime 之间用
+  onCompareRequested 回调接线，现有顶栏按钮不动。
+  SystemUiRuntime 把 ACTION_COMPARE 的处理抽成 runCompare()，
+  设置页广播与工作区内弹窗共用同一条路；设置页入口保留，
+  未删除。
+- 接线：NeXtepWindowController.openSearches()、
+  WorkspaceController.openSearches() 新增，旧的
+  launchInSlot / openExternalInMain 不动。
+
+仍未实机验证（不要假设已解决）：
+- 每家 deep link 在目标机、目标 App 版本上是否直达搜索页，
+  还是被路由 Activity 转走/回首页；https 兜底是否进 App
+  还是落浏览器、是否撞登录墙。
+- ColorOS 应用间跳转确认框：一轮连跳 4 个 App 时是否逐个
+  弹确认、是否会打断定序（失败下标会记在日志里）。
+- NoSpace 时的表现：槽已被无关应用占满时，比价是否明确
+  报错、用户是否知道要先腾出槽。
+- 工作区内弹窗本身：在 SystemUI 进程里弹 AlertDialog 的
+  样式、焦点与输入法是否正常；顶栏放大镜按钮是否误触。
+- WorkspaceSearchReadiness 的 600ms 稳定等待与
+  LaunchSequence 的 5s 观察超时（50 次 × 100ms）在慢设备
+  上是否够用，超时后失败下标是否准确。
