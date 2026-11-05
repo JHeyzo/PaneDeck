@@ -1,0 +1,154 @@
+# PaneDeck — NeXtep 比价版设计
+
+> 2026-11-05 更名：仓库 JHeyzo/PaneDeck，包名 io.github.jheyzo.panedeck，模块名 PaneDeck（module.prop id=panedeck，作者 JHeyzo）。上游仍为 lujinxin/NeXtep 2.1.0（Apache-2.0），署名保留。
+
+# 比价版设计（基于 NeXtep 2.1.0，不抄格窗代码）
+
+底子：上游 NeXtep 2.1.0，提交 358bcdd（2026-10-29），Apache-2.0。
+2026-11-05 已并入 xingmihai fork 的改动（用户确认可用，保留署名）：
+底角手势独立开关（新增 BottomCornerGestureDetector /
+SystemUiBottomCornerGestureMonitor，状态栏、四指、底角各走各的门）、
+ColorOS 17 COUI 桌面菜单锚点/根视图修补、状态栏手势根视图按窗口类型
+区分（Android 17 的 getRootViews 兜底）。未并入其签名发布工作流。
+圆角开关（paneRounded）合并时保留，未被覆盖。
+注意：底角手势监视器在 xingmihai 源码里注明系从格窗移植而来，
+属手势触发方式，非付费功能。
+ColorOS 适配是上游原生的：ColorOS 16/17、主力机 OnePlus PLK110，
+作用域含 SystemUI、系统框架、oplus 桌面、分身服务、负一屏。
+本版不引入格窗的解锁逻辑，不复制格窗的解包代码。
+
+## 1. 比价功能（只借鉴行为，不照抄实现）
+
+行为定义（公开行为层面）：
+- 用户输一次商品名，多个购物应用同时搜，各开一个窗口并排看。
+- 不抓价格、不下单、不读账号，只负责打开各应用的搜索结果页。
+
+实现路径（用上游已有能力，不新造窗口系统）：
+- 入口：设置页新增一个比价入口（第一版先放设置页，不动顶栏工具体系）。
+- 启动顺序：先确保工作台已打开；第一个应用走
+  `WorkspaceController.openFromLauncher(intent)` 进大窗，
+  其余走 `WorkspaceController.launchInSlot(intent)` 依次进小窗。
+- 上限：上游是 1 大窗 + 3 小窗（`WORKSPACE_SLOT_COUNT = 3`），
+  所以一轮比价最多 4 个应用，超过要先提示用户删减，不要硬塞第 5 个。
+- 回退规则（按顺序）：
+  1. 应用没装：跳过，最后统一提示缺了哪几个；
+  2. 小窗没准备好：等一小会儿再试，仍失败就提示稍后再试；
+  3. 该应用版本不支持直接搜：退回打开应用首页，不伪造搜索结果。
+
+待用户确认后才能落地的部分（不要凭空编）：
+- 比价应用列表：淘宝、京东、拼多多、抖音商城等，到底是哪几个、顺序如何。
+- 每个应用的搜索跳转方式：各家搜索页的 Intent / 链接格式不同，
+  必须在目标机上逐个实测，实测前不在代码里写死未经验证的跳转格式。
+- 主力机型与 ColorOS 版本：用于确认上游适配范围是否覆盖。
+
+## 2. 窗口样式开关（默认小圆角，可切直角）
+
+约定：
+- 默认：大窗 16dp、小窗 12dp；
+- 直角档：0dp；
+- 设置里一个开关即可，不做多档半径选择。
+
+已落地（2026-11-05，工作副本内，未编译验证）：
+- `SettingsRepository.paneRounded`（`nextep_settings` 的 `pane_rounded`，
+  默认 true）+ 设置页开关 + 中英文文案；
+- `WorkspaceTopConfig.paneRounded` + `EXTRA_PANE_ROUNDED`，
+  经 `WorkspaceConfigReceiver.readConfig` / `WorkspaceConfigClient`
+  透传到 SystemUI 侧，走上游现有配置通道，未另起通道。
+
+仍待验证的关键点（不要假设已解决）：
+- 上游的窗口是任务 Surface，不是普通 View 的圆角背景，
+  所以圆角不能只在设置页画个圆角框了事，必须在任务 Surface 呈现层
+  （`TaskSurfaceCompat` / `SlotTaskCoordinator` 的几何与呈现路径）找
+  到可用的裁剪/圆角手段，并确认它在 ColorOS 的 SystemUI 进程里生效。
+  上面这一步还没做：开关目前只把选择传过去，窗口本身还不会变圆角。
+- 2026-11-05 排查到的落点（未实测）：
+  `TaskSurfaceCompat.writeFrame()` 目前只写 crop、矩阵/缩放、位置，
+  没有圆角；`appendOwnedTransforms()` 里小窗路径也是直接调
+  `writeFrame()`。所以圆角最可能的落点就是在 `writeFrame()` 里，
+  按上游现有的反射写法（`setCrop` 那套 `invokeOptional` 模式），
+  对同一 leash 再写一个圆角半径（候选：`SurfaceControl.Transaction`
+  的 `setCornerRadius`，需在 ColorOS SystemUI 进程里实测它是否存在、
+  是否对任务 leash 生效、动画帧重写时会不会被冲掉）。
+  半径换算：dp 转 px 后按当前缩放比例处理，大窗 16dp、小窗 12dp
+  是两个档，不是同一个半径值。
+- 2026-11-05 已在工作副本里加了钩子（未编译、未实测）：
+  `TaskSurfaceCompat.paneCornerRadiusPx`（默认 0，即不变），
+  `writeFrame()` 里 >0 时用 `invokeOptional` 写 `setCornerRadius`，
+  方法不存在时安全空操作，不会打断原有帧提交。
+  还没做的：把 `WorkspaceTopConfig.paneRounded` 的值换算成 px
+  写进这个字段，以及大窗/小窗两个半径的区分。
+- 2026-11-05 接线已做（未编译、未实测）：
+  `SystemUiRuntime.refreshWorkspaceConfig()` 里，拿到配置后按
+  `paneRounded` 写 `TaskSurfaceCompat.paneCornerRadiusPx`：
+  开 = 12dp × density，关 = 0。先用小窗的 12dp 统一当半径，
+  大窗的 16dp 还要等按帧区分主窗/小窗才能做，不要把这版
+  当成“大窗 16dp 已实现”。
+- 视频/游戏铺满时圆角会裁内容，切换到直角档时应立即生效，
+  不要等重启工作台。
+
+## 3. 测试前置条件
+
+- 本版与格窗不能同时在 LSPosed 里启用，两者都会钩 SystemUI，
+  测本版前先在 LSPosed 里停用格窗并重启手机。
+- 上游要求：Root（KernelSU 等）、Zygisk + LSPosed（新 libxposed API）、
+  作用域按内置列表全勾，保留可恢复路径（LSPosed 停用 + 重启可恢复）。
+
+## 4. 工具链实测（2026-11-05）
+
+- 沙盒现状：只有 Java 17，无 Android SDK、无 gradle/kotlinc；
+  上游 BUILDING.md 要求 JDK 21 + SDK 36.1 + Gradle 9.5。
+  因此沙盒内直接编译不可行，需在用户 PC 上编译，
+  或另行搭 JDK 21 + SDK 36 环境（下载量大，暂未动手）。
+
+## 5. 圆角分窗半径（2026-11-05 已落地，未编译）
+
+- SurfaceFrame 新增 cornerRadiusPx（默认 0，保持旧构造点不变）；
+  writeFrame 优先用帧半径，否则回落到全局 paneCornerRadiusPx。
+- 主窗路径（applyPresentation）用 mainPaneCornerRadiusPx=16dp，
+  小窗两条重绘路径用 slotPaneCornerRadiusPx=12dp，
+  SystemUiRuntime 在圆角开启时同时设置三者，关闭时全 0。
+- 仍有缺口：ActivePresentation 初始帧仍带 0，走回落值 12dp，
+  即主窗在某些动画帧上可能是 12dp 而非 16dp，需实机看效果后定。
+
+## 6. 比价来源定案（2026-11-05 用户纠正）
+
+- 2 号（zealler9560，格窗 3.0.5）确为 Apache 2.0 开源，
+  README 明写“本仓库沿用 Apache License 2.0”，该版本比价
+  未上锁、无解锁代码，因此可直接用、需保留署名（上游
+  lujinxin NeXtep + 格窗 yishisanren），不得抹掉版权。
+- 与 3.4.1 反编译付费版区分：后者是绕过现行付费锁，
+  不属于本条；3.0.5 是作者当时公开免费发布的开源版本。
+- 实际移植仍需适配：3.0.5 的比价依赖其 Workbench 场景/
+  WorkbenchIntents/WorkspaceSearchPlacement，上游 2.1.0
+  没有这些，需按上游 WorkspaceController 的 launchInSlot
+  路径重接；默认应用列表沿用 3.0.5：购物拼多多、抖音商城、
+  京东、淘宝，外卖京东外卖、淘宝闪购、美团外卖。
+
+## 7. 比价 v1（2026-11-05 已写代码，未编译、未实机）
+
+- 新文件 compare/CompareIntents.kt（购物/外卖两档，沿用 3.0.5
+  应用列表与搜索入口，署名见上）、compare/CompareRunner.kt
+  （主窗先开、随后小窗 0/1/2 依次开，间隔 900ms，单应用失败
+  只记日志不中断整轮，未装应用跳过，美团主入口不通时
+  回落独立外卖包）。
+- 新增过载：NeXtepWindowController/WorkspaceController 的
+  launchInSlot(intent, slotIndex) 与 openExternalInMain，
+  原有无下标过载（恒走小窗 0）不动。
+- 触发：TriggerBroadcastContract.ACTION_COMPARE，带
+  EXTRA_COMPARE_QUERY / EXTRA_COMPARE_MODE（SHOPPING/DELIVERY），
+  SystemUiRuntime 的 controlReceiver 已注册该动作并在工作区
+  未激活时先激活再跑。注意该广播受 signature 级
+  CONTROL_PERMISSION 保护，只有同签名模块应用能发。
+- 界面入口（2026-11-05 已补）：设置页在圆角开关后新增
+  “比价”行，点开弹窗输商品名、选购物/外卖，发送
+  ACTION_COMPARE 有序广播（同签名 CONTROL_PERMISSION）
+  给 SystemUi。工作区内直接弹窗未做，先用设置页入口。
+- 仍缺：小窗 deep link 能否扛过上游 launchInSlot 的
+  launcher-category 归一化未实机验证，900ms 间隔只是
+  启发值；编译未做。
+
+## 8. 当前阻塞
+
+- 缺：比价应用列表、主力机型、ColorOS 版本。
+- 有了这三项，才能写各应用的搜索跳转表并开始改代码；
+  在此之前只做设计，不编造跳转格式、不出包。

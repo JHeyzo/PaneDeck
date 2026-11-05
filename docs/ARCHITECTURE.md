@@ -27,7 +27,7 @@ The coordinator resolves the current HOME package and uses explicit ordered broa
 
 The status-bar gesture is observed inside SystemUI and can drive the local workspace controller directly. Exit/recovery paths also notify HOME and the assistant panel, with the broker available for reconciliation. The control area's exit button and gear button are distinct: exit closes the workspace; the gear opens NeXtep through task coordination while retaining workspace mode.
 
-Control broadcasts use `io.github.lujinxin.nextep.permission.CONTROL_WORKSPACE`, a signature permission. The exported broker is protected by `android.permission.STATUS_BAR_SERVICE`. Host-to-host paths authenticate the expected package or immutable `PendingIntent` identity; these are separate checks rather than one generic broadcast trust rule.
+Control broadcasts use `io.github.jheyzo.panedeck.permission.CONTROL_WORKSPACE`, a signature permission. The exported broker is protected by `android.permission.STATUS_BAR_SERVICE`. Host-to-host paths authenticate the expected package or immutable `PendingIntent` identity; these are separate checks rather than one generic broadcast trust rule.
 
 ### Four-finger gestures
 

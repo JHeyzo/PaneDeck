@@ -1,0 +1,29 @@
+package io.github.jheyzo.panedeck.workspace
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.Intent
+import io.github.jheyzo.panedeck.logging.NeXtepLog
+import io.github.jheyzo.panedeck.trigger.TriggerBroadcastContract
+
+object WorkspaceStateBridge {
+    fun requestInactiveFromSystemUi(context: Context) {
+        try {
+            sendToBroker(context, TriggerBroadcastContract.hostSetIntent(false)
+                .putExtra(TriggerBroadcastContract.EXTRA_ONLY_IF_INACTIVE, true))
+        } catch (error: Throwable) {
+            NeXtepLog.error("workspace_bridge", "Could not request fail-open reset", error)
+        }
+    }
+
+    // 0x01000000 is the framework's hidden include-background receiver flag on this target.
+    @SuppressLint("WrongConstant")
+    private fun sendToBroker(context: Context, intent: Intent) {
+        intent.addFlags(
+            Intent.FLAG_RECEIVER_FOREGROUND or FLAG_RECEIVER_INCLUDE_BACKGROUND_COMPAT,
+        )
+        context.sendOrderedBroadcast(intent, null)
+    }
+
+    private const val FLAG_RECEIVER_INCLUDE_BACKGROUND_COMPAT = 0x01000000
+}

@@ -4,13 +4,15 @@
 
 <h2 align="center">NeXtep —— 致敬并延续 OneStep</h2>
 
+<p align="center">Based on <a href="https://github.com/lujinxin/NeXtep">NeXtep by lujinxin</a> (Apache-2.0), with price compare, per-gesture switches and ColorOS 17 fixes.</p>
+
 <p align="center">
   <a href="README.md">English</a> / <a href="README_CN.md">中文</a>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Android-16%2B-3DDC84?style=flat&logo=android&logoColor=white" alt="Android 16+">
-  <img src="https://img.shields.io/github/v/release/lujinxin/NeXtep?display_name=tag&sort=semver" alt="最新版本">
+  <img src="https://img.shields.io/github/v/release/JHeyzo/PaneDeck?display_name=tag&sort=semver" alt="最新版本">
   <img src="https://img.shields.io/badge/status-stable-2EA44F?style=flat" alt="状态：正式版">
   <img src="https://img.shields.io/badge/Root-Required-C62828?style=flat" alt="需要 Root">
   <img src="https://img.shields.io/badge/license-Apache--2.0-4C1?style=flat" alt="Apache 2.0 许可证">
@@ -186,13 +188,13 @@
 进入小窗模式：
 
 ```sh
-am broadcast -n io.github.lujinxin.nextep/.trigger.WorkspaceControlBrokerReceiver -a io.github.lujinxin.nextep.action.HOST_SET_REQUEST --ez io.github.lujinxin.nextep.extra.REQUESTED_ACTIVE true
+am broadcast -n io.github.jheyzo.panedeck/.trigger.WorkspaceControlBrokerReceiver -a io.github.jheyzo.panedeck.action.HOST_SET_REQUEST --ez io.github.jheyzo.panedeck.extra.REQUESTED_ACTIVE true
 ```
 
 退出小窗模式：
 
 ```sh
-am broadcast -n io.github.lujinxin.nextep/.trigger.WorkspaceControlBrokerReceiver -a io.github.lujinxin.nextep.action.HOST_SET_REQUEST --ez io.github.lujinxin.nextep.extra.REQUESTED_ACTIVE false
+am broadcast -n io.github.jheyzo.panedeck/.trigger.WorkspaceControlBrokerReceiver -a io.github.jheyzo.panedeck.action.HOST_SET_REQUEST --ez io.github.jheyzo.panedeck.extra.REQUESTED_ACTIVE false
 ```
 
 查询当前状态：

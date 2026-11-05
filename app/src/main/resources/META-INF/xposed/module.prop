@@ -1,9 +1,9 @@
-id=nextep
-name=NeXtep
+id=panedeck
+name=PaneDeck
 version=2.1.0
 versionCode=17
-author=lujinxin
-description=ColorOS 16 native side workspace foundation
+author=JHeyzo
+description=PaneDeck — ColorOS native side workspace with price compare, based on NeXtep
 minApiVersion=101
 targetApiVersion=102
 staticScope=false

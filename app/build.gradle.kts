@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-    namespace = "io.github.lujinxin.nextep"
+    namespace = "io.github.jheyzo.panedeck"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -11,7 +11,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.github.lujinxin.nextep"
+        applicationId = "io.github.jheyzo.panedeck"
         minSdk = 35
         targetSdk = 36
         versionCode = 17

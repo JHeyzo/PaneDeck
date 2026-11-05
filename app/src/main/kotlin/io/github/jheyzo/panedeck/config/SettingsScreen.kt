@@ -1,0 +1,923 @@
+package io.github.jheyzo.panedeck.config
+
+import android.app.StatusBarManager
+import android.content.ClipData
+import android.content.ComponentName
+import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.Icon
+import android.text.TextUtils
+import android.view.DragEvent
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
+import android.widget.ImageView
+import android.widget.BaseAdapter
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.button.MaterialButtonToggleGroup
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.checkbox.MaterialCheckBox
+import com.google.android.material.switchmaterial.SwitchMaterial
+import com.google.android.material.textfield.TextInputEditText
+import com.google.android.material.textfield.TextInputLayout
+import io.github.jheyzo.panedeck.R
+import io.github.jheyzo.panedeck.apps.LauncherAppCatalogContract
+import io.github.jheyzo.panedeck.apps.LauncherAppRepository
+import io.github.jheyzo.panedeck.trigger.NeXtepTileService
+
+object SettingsScreen {
+    private data class AppOption(
+        val key: String,
+        val userId: Int,
+        val label: String,
+        val icon: Drawable,
+    )
+
+    private data class BlacklistOption(
+        val packageName: String,
+        val label: String,
+        val icon: Drawable,
+    )
+
+    fun create(activity: AppCompatActivity, repository: SettingsRepository): View {
+        val settings = repository.topBarSettings()
+        val apps = loadApps(activity).toMutableList()
+        val appByName = apps.associateBy { it.key }.toMutableMap()
+        // A saved clone may arrive asynchronously from SystemUI. Keep its order
+        // while the unprivileged settings process is still loading the catalogue.
+        val selected = settings.appComponents.distinct()
+            .filter { it in appByName || it.contains('|') }.toMutableList()
+        var manualMode = settings.manualAppOrder
+
+        return LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(activity, 20), dp(activity, 24), dp(activity, 20), dp(activity, 24))
+            setBackgroundColor(SettingsPalette.page(activity))
+
+            addView(TextView(activity).apply {
+                text = activity.getString(R.string.navigation_settings)
+                textSize = 28f
+                typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+                setTextColor(SettingsPalette.text(activity))
+                ViewCompat.setAccessibilityHeading(this, true)
+            }, matchWidth().apply { bottomMargin = dp(activity, 20) })
+
+            val languageLabels = intArrayOf(
+                R.string.language_system, R.string.language_hans, R.string.language_hant,
+                R.string.language_english, R.string.language_japanese, R.string.language_korean,
+            ).map { activity.getString(it) }.toTypedArray()
+            val selectedLanguage = AppLanguage.selectedTag(activity)
+            val launcherIconButton = LauncherIconPreference.createButton(activity)
+            val fourFingerBlacklistButton = createFourFingerBlacklistButton(activity, repository, apps)
+            val languageButton = SettingsRowButton.create(activity).apply {
+                text = languageLabels[AppLanguage.languageTags.indexOf(selectedLanguage).coerceAtLeast(0)]
+                contentDescription = activity.getString(R.string.setting_description,
+                    activity.getString(R.string.language_title), text)
+                setOnClickListener {
+                    com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
+                        .setTitle(R.string.language_title)
+                        .setSingleChoiceItems(languageLabels, AppLanguage.languageTags.indexOf(selectedLanguage)) { dialog, index ->
+                            dialog.dismiss()
+                            val tag = AppLanguage.languageTags[index]
+                            if (tag != selectedLanguage) AppLanguage.select(activity, tag)
+                        }
+                        .setNegativeButton(R.string.action_cancel, null)
+                        .show()
+                }
+            }
+
+            val compareButton = SettingsRowButton.create(activity).apply {
+                text = activity.getString(R.string.compare_search)
+                contentDescription = activity.getString(R.string.compare_title)
+                setOnClickListener {
+                    val queryInput = TextInputEditText(activity).apply {
+                        hint = activity.getString(R.string.compare_query_hint)
+                        setSingleLine(true)
+                        textSize = 16f
+                    }
+                    val modeGroup = android.widget.RadioGroup(activity).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        addView(android.widget.RadioButton(activity).apply {
+                            id = View.generateViewId()
+                            text = activity.getString(R.string.compare_shopping)
+                            isChecked = true
+                        })
+                        addView(android.widget.RadioButton(activity).apply {
+                            id = View.generateViewId()
+                            text = activity.getString(R.string.compare_delivery)
+                        })
+                    }
+                    val panel = LinearLayout(activity).apply {
+                        orientation = LinearLayout.VERTICAL
+                        setPadding(dp(activity, 20), dp(activity, 8), dp(activity, 20), dp(activity, 8))
+                        addView(queryInput, matchWidth())
+                        addView(modeGroup, matchWidth().apply { topMargin = dp(activity, 12) })
+                    }
+                    com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
+                        .setTitle(R.string.compare_title)
+                        .setView(panel)
+                        .setPositiveButton(R.string.compare_search) { _, _ ->
+                            val query = queryInput.text?.toString().orEmpty().trim()
+                            if (query.isEmpty()) {
+                                Toast.makeText(activity, R.string.compare_empty, Toast.LENGTH_SHORT).show()
+                                return@setPositiveButton
+                            }
+                            val mode = if (modeGroup.checkedRadioButtonId ==
+                                (modeGroup.getChildAt(1) as android.widget.RadioButton).id) "DELIVERY" else "SHOPPING"
+                            val intent = android.content.Intent(
+                                io.github.jheyzo.panedeck.trigger.TriggerBroadcastContract.ACTION_COMPARE,
+                            ).setPackage(io.github.jheyzo.panedeck.trigger.TriggerBroadcastContract.SYSTEM_UI_PACKAGE)
+                                .putExtra(io.github.jheyzo.panedeck.trigger.TriggerBroadcastContract.EXTRA_COMPARE_QUERY, query)
+                                .putExtra(io.github.jheyzo.panedeck.trigger.TriggerBroadcastContract.EXTRA_COMPARE_MODE, mode)
+                            activity.sendOrderedBroadcast(
+                                intent,
+                                io.github.jheyzo.panedeck.trigger.TriggerBroadcastContract.CONTROL_PERMISSION,
+                            )
+                            Toast.makeText(activity, R.string.compare_sent, Toast.LENGTH_SHORT).show()
+                        }
+                        .setNegativeButton(R.string.action_cancel, null)
+                        .show()
+                }
+            }
+
+            val addTileButton = SettingsRowButton.create(activity).apply {
+                text = activity.getString(R.string.action_add)
+                contentDescription = activity.getString(R.string.tile_add_description)
+                setOnClickListener {
+                    isEnabled = false
+                    runCatching {
+                        activity.getSystemService(StatusBarManager::class.java)
+                            .requestAddTileService(
+                                ComponentName(activity, NeXtepTileService::class.java),
+                                activity.getString(R.string.app_name),
+                                Icon.createWithResource(activity, R.drawable.ic_nextep_tile),
+                                activity.mainExecutor,
+                            ) { result ->
+                                isEnabled = true
+                                val message = when (result) {
+                                    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED -> activity.getString(R.string.tile_added)
+                                    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> activity.getString(R.string.tile_already_added)
+                                    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_NOT_ADDED -> activity.getString(R.string.tile_not_added)
+                                    else -> activity.getString(R.string.tile_add_unavailable)
+                                }
+                                Toast.makeText(activity, message, Toast.LENGTH_LONG).show()
+                            }
+                    }.onFailure {
+                        isEnabled = true
+                        Toast.makeText(activity, activity.getString(R.string.tile_add_manually), Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+
+            addView(sectionCard(activity).apply {
+                addView(LinearLayout(activity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(settingRow(activity, activity.getString(R.string.tile_entry_title), activity.getString(R.string.tile_entry_summary), addTileButton), matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingRow(activity, activity.getString(R.string.language_title),
+                        activity.getString(R.string.language_summary), languageButton).apply {
+                        setOnClickListener { languageButton.performClick() }
+                        isFocusable = false
+                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    }, matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingRow(activity, activity.getString(R.string.launcher_icon_title),
+                        activity.getString(R.string.launcher_icon_summary), launcherIconButton).apply {
+                        setOnClickListener { launcherIconButton.performClick() }
+                        isFocusable = false
+                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    }, matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingSwitchRow(
+                        activity,
+                        activity.getString(R.string.gesture_title),
+                        activity.getString(R.string.gesture_summary),
+                        settings.statusBarGestureEnabled,
+                        repository::setStatusBarGestureEnabled,
+                    ), matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingSwitchRow(
+                        activity,
+                        activity.getString(R.string.bottom_corner_gesture_title),
+                        activity.getString(R.string.bottom_corner_gesture_summary),
+                        settings.bottomCornerGestureEnabled,
+                        repository::setBottomCornerGestureEnabled,
+                    ), matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingSwitchRow(
+                        activity,
+                        activity.getString(R.string.four_finger_gesture_title),
+                        activity.getString(R.string.four_finger_gesture_summary),
+                        settings.fourFingerGestureEnabled,
+                        repository::setFourFingerGestureEnabled,
+                    ), matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingSwitchRow(
+                        activity,
+                        activity.getString(R.string.four_finger_block_games_title),
+                        activity.getString(R.string.four_finger_block_games_summary),
+                        settings.fourFingerGestureBlockGames,
+                        repository::setFourFingerGestureBlockGames,
+                    ), matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingRow(activity,
+                        activity.getString(R.string.four_finger_blacklist_title),
+                        activity.getString(R.string.four_finger_blacklist_summary),
+                        fourFingerBlacklistButton).apply {
+                        setOnClickListener { fourFingerBlacklistButton.performClick() }
+                        isFocusable = false
+                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    }, matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingSwitchRow(
+                        activity,
+                        activity.getString(R.string.background_swipe_title),
+                        activity.getString(R.string.background_swipe_summary),
+                        settings.slotBackgroundSwipeEnabled,
+                        repository::setSlotBackgroundSwipeEnabled,
+                    ), matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingSliderRow(
+                        activity,
+                        activity.getString(R.string.window_animation_duration_title),
+                        activity.getString(R.string.window_animation_duration_summary),
+                        settings.swapAnimationDurationMs,
+                        WorkspaceConfigContract.MIN_SWAP_ANIMATION_DURATION_MS,
+                        WorkspaceConfigContract.MAX_SWAP_ANIMATION_DURATION_MS,
+                        WorkspaceConfigContract.SWAP_ANIMATION_DURATION_STEP_MS,
+                        { activity.getString(R.string.window_animation_duration_value, it / 1_000.0) },
+                        repository::setSwapAnimationDurationMs,
+                    ), matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingSwitchRow(
+                        activity,
+                        activity.getString(R.string.auto_minimize_title),
+                        activity.getString(R.string.auto_minimize_summary),
+                        settings.autoMinimizeMainOnTopAppSwitch,
+                        repository::setAutoMinimizeMainOnTopAppSwitch,
+                    ), matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingSwitchRow(
+                        activity,
+                        activity.getString(R.string.navigation_buttons_title),
+                        activity.getString(R.string.navigation_buttons_summary),
+                        settings.navigationButtonsEnabled,
+                        repository::setNavigationButtonsEnabled,
+                    ), matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingSwitchRow(
+                        activity,
+                        activity.getString(R.string.pane_rounded_title),
+                        activity.getString(R.string.pane_rounded_summary),
+                        settings.paneRounded,
+                        repository::setPaneRounded,
+                    ), matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingRow(activity,
+                        activity.getString(R.string.compare_title),
+                        activity.getString(R.string.compare_summary),
+                        compareButton).apply {
+                        setOnClickListener { compareButton.performClick() }
+                        isFocusable = false
+                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    }, matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingSliderRow(
+                        activity,
+                        activity.getString(R.string.frost_title),
+                        activity.getString(R.string.frost_summary),
+                        settings.frostStrength,
+                        0,
+                        100,
+                        1,
+                        { activity.getString(R.string.frost_strength_value, it) },
+                        repository::setFrostStrength,
+                    ), matchWidth())
+                }, matchWidth())
+            }, matchWidth().apply { bottomMargin = dp(activity, 16) })
+
+            val titleInput = TextInputEditText(activity).apply {
+                background = null
+                setPadding(dp(activity, 16), dp(activity, 16), dp(activity, 16), dp(activity, 16))
+                setText(repository.topTitleDraft())
+                setSingleLine(true)
+                textSize = 16f
+                addTextChangedListener(object : android.text.TextWatcher {
+                    override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                    override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                        repository.setTopTitleDraft(s?.toString().orEmpty())
+                    }
+                    override fun afterTextChanged(s: android.text.Editable?) = Unit
+                })
+            }
+            val customEditor = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+            val secondsSwitch = SwitchMaterial(activity).apply {
+                text = activity.getString(R.string.show_seconds)
+                isChecked = settings.showSeconds
+                setOnCheckedChangeListener { _, checked -> repository.setTopShowSeconds(checked) }
+            }
+            val contentChoices = listOf(
+                TopContentMode.ICON to activity.getString(R.string.content_icon),
+                TopContentMode.TIME to activity.getString(R.string.content_time),
+                TopContentMode.DATE to activity.getString(R.string.content_date),
+                TopContentMode.EMPTY to activity.getString(R.string.content_empty),
+                TopContentMode.TEXT to activity.getString(R.string.content_custom),
+            ).associate { (mode, label) ->
+                mode to com.google.android.material.chip.Chip(activity).apply {
+                    id = View.generateViewId()
+                    text = label
+                    setTextColor(SettingsPalette.text(activity))
+                    minHeight = dp(activity, 48)
+                    isCheckable = true
+                    setEnsureMinTouchTargetSize(true)
+                }
+            }
+            fun selectContent(mode: String) {
+                contentChoices.forEach { (value, button) -> button.isChecked = value == mode }
+                secondsSwitch.visibility = if (mode == TopContentMode.TIME) View.VISIBLE else View.GONE
+                customEditor.visibility = if (mode == TopContentMode.TEXT) View.VISIBLE else View.GONE
+                if (mode != TopContentMode.TEXT) {
+                    titleInput.clearFocus()
+                    activity.getSystemService(InputMethodManager::class.java)
+                        ?.hideSoftInputFromWindow(titleInput.windowToken, 0)
+                }
+            }
+            contentChoices.forEach { (mode, button) ->
+                button.setOnClickListener {
+                    repository.setTopContentMode(mode)
+                    selectContent(mode)
+                }
+            }
+            customEditor.addView(TextInputLayout(activity).apply {
+                hint = activity.getString(R.string.content_custom)
+                boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
+                val radius = dp(activity, 12).toFloat()
+                setBoxCornerRadii(radius, radius, radius, radius)
+                setBoxStrokeColor(SettingsPalette.primary(activity))
+                addView(titleInput, matchWidth())
+            }, matchWidth().apply { topMargin = dp(activity, 8) })
+            customEditor.addView(MaterialButton(activity).apply {
+                text = activity.getString(R.string.save_text)
+                cornerRadius = dp(activity, 12)
+                setBackgroundColor(SettingsPalette.primary(activity))
+                setTextColor(com.google.android.material.color.MaterialColors.getColor(activity, com.google.android.material.R.attr.colorOnPrimary, Color.WHITE))
+                setOnClickListener {
+                    val value = titleInput.text?.toString().orEmpty()
+                    repository.setTopTitle(value)
+                    selectContent(if (value.isBlank()) TopContentMode.ICON else TopContentMode.TEXT)
+                    titleInput.clearFocus()
+                    activity.getSystemService(InputMethodManager::class.java)
+                        ?.hideSoftInputFromWindow(titleInput.windowToken, 0)
+                    Toast.makeText(activity, if (value.isBlank()) activity.getString(R.string.default_icon_restored) else activity.getString(R.string.custom_text_saved), Toast.LENGTH_SHORT).show()
+                }
+            }, matchWidth().apply { topMargin = dp(activity, 10) })
+            customEditor.addView(SwitchMaterial(activity).apply {
+                text = activity.getString(R.string.scroll_text)
+                isChecked = settings.textScroll
+                setOnCheckedChangeListener { _, checked -> repository.setTopTextScroll(checked) }
+            }, matchWidth())
+            customEditor.addView(sectionDescription(activity, activity.getString(R.string.scroll_text_summary)), matchWidth())
+            var fontFamily = settings.textFontFamily
+            var fontBold = settings.textBold
+            var fontSize = settings.textSizeSp
+            fun updateEditorFont() {
+                titleInput.typeface = TopTextStyle.typeface(fontFamily, fontBold)
+                titleInput.textSize = fontSize.toFloat()
+            }
+            val fontButton = MaterialButton(activity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                fun selectedLabel() = TopTextStyle.familyLabel(activity, fontFamily)
+                text = activity.getString(R.string.font_value, selectedLabel())
+                setOnClickListener {
+                    SystemFontPicker.show(activity, fontFamily, titleInput.text?.toString().orEmpty()) { family ->
+                        fontFamily = family
+                        repository.setTopTextFontFamily(fontFamily)
+                        text = activity.getString(R.string.font_value, selectedLabel())
+                        updateEditorFont()
+                    }
+                }
+            }
+            customEditor.addView(fontButton, matchWidth())
+            customEditor.addView(SwitchMaterial(activity).apply {
+                text = activity.getString(R.string.font_bold)
+                isChecked = fontBold
+                setOnCheckedChangeListener { _, checked ->
+                    fontBold = checked
+                    repository.setTopTextBold(checked)
+                    updateEditorFont()
+                }
+            }, matchWidth())
+            val sizeLabel = sectionDescription(activity, activity.getString(R.string.font_size_value, fontSize))
+            customEditor.addView(sizeLabel, matchWidth())
+            var trackingTextSize = false
+            customEditor.addView(com.google.android.material.slider.Slider(activity).apply {
+                valueFrom = TopTextStyle.MIN_SIZE_SP.toFloat()
+                valueTo = TopTextStyle.MAX_SIZE_SP.toFloat()
+                stepSize = 1f
+                value = fontSize.toFloat()
+                contentDescription = activity.getString(R.string.top_text_size)
+                addOnChangeListener { _, value, fromUser ->
+                    if (fromUser) {
+                        fontSize = value.toInt()
+                        sizeLabel.text = activity.getString(R.string.font_size_value, fontSize)
+                        updateEditorFont()
+                        if (!trackingTextSize) repository.setTopTextSize(fontSize)
+                    }
+                }
+                addOnSliderTouchListener(object : com.google.android.material.slider.Slider.OnSliderTouchListener {
+                    override fun onStartTrackingTouch(slider: com.google.android.material.slider.Slider) {
+                        trackingTextSize = true
+                    }
+                    override fun onStopTrackingTouch(slider: com.google.android.material.slider.Slider) {
+                        trackingTextSize = false
+                        repository.setTopTextSize(slider.value.toInt())
+                    }
+                })
+            }, matchWidth())
+            updateEditorFont()
+            selectContent(settings.contentMode)
+            addView(sectionCard(activity).apply {
+                addView(sectionContent(activity).apply {
+                    addView(sectionTitle(activity, activity.getString(R.string.top_content_title)), matchWidth())
+                    addView(sectionDescription(activity, activity.getString(R.string.top_content_summary)), matchWidth())
+                    addView(com.google.android.material.chip.ChipGroup(activity).apply {
+                        isSingleSelection = true
+                        isSelectionRequired = true
+                        contentChoices.values.forEach { addView(it) }
+                    }, matchWidth().apply { topMargin = dp(activity, 10) })
+                    addView(secondsSwitch, matchWidth())
+                    addView(customEditor, matchWidth())
+                })
+            }, matchWidth())
+
+            addView(View(activity), LinearLayout.LayoutParams(1, dp(activity, 14)))
+
+            val selectedContainer = LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+            val availableContainer = LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+            val manualContainer = LinearLayout(activity).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+            val automaticButton = modeButton(activity, activity.getString(R.string.sort_automatic))
+            val manualButton = modeButton(activity, activity.getString(R.string.sort_manual))
+            val modeSelector = MaterialButtonToggleGroup(activity).apply {
+                isSingleSelection = true
+                isSelectionRequired = true
+                addView(automaticButton, LinearLayout.LayoutParams(0, dp(activity, 44), 1f))
+                addView(manualButton, LinearLayout.LayoutParams(0, dp(activity, 44), 1f))
+                check(if (manualMode) manualButton.id else automaticButton.id)
+            }
+            val modeDescription = sectionDescription(activity, "")
+
+            lateinit var render: () -> Unit
+            render = {
+                manualContainer.visibility = if (manualMode) View.VISIBLE else View.GONE
+                modeDescription.text = if (manualMode) {
+                    activity.getString(R.string.sort_manual_summary)
+                } else {
+                    activity.getString(R.string.sort_automatic_summary)
+                }
+                selectedContainer.removeAllViews()
+                if (selected.isEmpty()) {
+                    selectedContainer.addView(emptyHint(activity, activity.getString(R.string.selected_apps_empty)))
+                } else {
+                    selected.forEachIndexed { index, name ->
+                        val option = appByName[name] ?: return@forEachIndexed
+                        selectedContainer.addView(
+                            draggableSelectedRow(activity, option, name, index, selected, repository) {
+                                render()
+                            },
+                        )
+                    }
+                }
+
+                availableContainer.removeAllViews()
+                apps.forEachIndexed { index, option ->
+                    val componentName = option.key
+                    availableContainer.addView(appRow(activity, option, 42).apply {
+                        addView(SwitchMaterial(activity).apply {
+                            text = ""
+                            isChecked = selected.contains(componentName)
+                            contentDescription = if (isChecked) activity.getString(R.string.app_remove, option.label) else activity.getString(R.string.app_add, option.label)
+                            setOnCheckedChangeListener { _, enabled ->
+                                if (enabled && selected.size >= MAX_TOP_APPS) {
+                                    isChecked = false
+                                    Toast.makeText(activity, activity.getString(R.string.apps_limit, MAX_TOP_APPS), Toast.LENGTH_SHORT).show()
+                                    return@setOnCheckedChangeListener
+                                }
+                                if (enabled) selected += componentName else selected.remove(componentName)
+                                repository.setTopApps(selected)
+                                render()
+                            }
+                        }, LinearLayout.LayoutParams(dp(activity, 58), dp(activity, 48)))
+                    })
+                    if (index != apps.lastIndex) availableContainer.addView(divider(activity))
+                }
+            }
+
+            addView(sectionCard(activity).apply {
+                addView(sectionContent(activity).apply {
+                    addView(sectionTitle(activity, activity.getString(R.string.app_strip_title)), matchWidth())
+                    addView(sectionDescription(activity, activity.getString(R.string.app_strip_summary)), matchWidth())
+                    addView(modeSelector, matchWidth().apply { topMargin = dp(activity, 14) })
+                    addView(modeDescription, matchWidth().apply { topMargin = dp(activity, 8) })
+                    addView(manualContainer.apply {
+                        addView(subsectionTitle(activity, activity.getString(R.string.selected_apps)), matchWidth())
+                        addView(selectedContainer, matchWidth())
+                        addView(subsectionTitle(activity, activity.getString(R.string.all_apps)), matchWidth().apply {
+                            topMargin = dp(activity, 16)
+                        })
+                        addView(availableContainer, matchWidth())
+                    }, matchWidth())
+                })
+            }, matchWidth())
+
+            modeSelector.addOnButtonCheckedListener { _, checkedId, isChecked ->
+                if (!isChecked) return@addOnButtonCheckedListener
+                manualMode = checkedId == manualButton.id
+                repository.setManualAppOrder(manualMode)
+                render()
+            }
+            render()
+            LauncherAppCatalogContract.query(activity) { profiles ->
+                if (profiles == null || activity.isDestroyed || activity.isFinishing) return@query
+                val currentUserId = LauncherAppRepository(activity).currentUserId
+                apps.removeAll { it.userId != currentUserId }
+                apps.addAll(profiles.map { AppOption(it.key, it.userId, it.label, it.icon) })
+                apps.sortBy { it.label.lowercase() }
+                appByName.clear()
+                appByName.putAll(apps.associateBy { it.key })
+                selected.retainAll(appByName.keys)
+                render()
+            }
+        }
+    }
+
+    private fun draggableSelectedRow(
+        activity: AppCompatActivity,
+        option: AppOption,
+        componentName: String,
+        index: Int,
+        selected: MutableList<String>,
+        repository: SettingsRepository,
+        render: () -> Unit,
+    ): View = appRow(activity, option, 38).apply {
+        contentDescription = activity.getString(R.string.app_drag_description, option.label)
+        background = roundedBackground(SettingsPalette.container(activity), dp(activity, 12).toFloat())
+        setPadding(dp(activity, 10), dp(activity, 5), dp(activity, 8), dp(activity, 5))
+        val params = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        )
+        params.bottomMargin = dp(activity, 7)
+        layoutParams = params
+        isLongClickable = true
+        setOnLongClickListener { row ->
+            row.startDragAndDrop(
+                ClipData.newPlainText("NeXtep App", componentName),
+                View.DragShadowBuilder(row),
+                componentName,
+                0,
+            )
+        }
+        setOnDragListener { _, event ->
+            when (event.action) {
+                DragEvent.ACTION_DRAG_STARTED -> event.localState is String
+                DragEvent.ACTION_DROP -> {
+                    val dragged = event.localState as? String ?: return@setOnDragListener false
+                    val from = selected.indexOf(dragged)
+                    if (from >= 0 && from != index) {
+                        selected.removeAt(from)
+                        selected.add(index.coerceAtMost(selected.size), dragged)
+                        repository.setTopApps(selected)
+                        render()
+                    }
+                    true
+                }
+                else -> true
+            }
+        }
+        addView(ImageView(activity).apply {
+            setImageResource(io.github.jheyzo.panedeck.R.drawable.ic_drag_handle)
+            scaleType = ImageView.ScaleType.CENTER
+            contentDescription = activity.getString(R.string.app_drag_position, option.label)
+        }, LinearLayout.LayoutParams(dp(activity, 44), dp(activity, 48)))
+    }
+
+    private fun createFourFingerBlacklistButton(
+        activity: AppCompatActivity,
+        repository: SettingsRepository,
+        apps: List<AppOption>,
+    ) = SettingsRowButton.create(activity).apply {
+        fun refreshLabel() {
+            text = activity.getString(R.string.four_finger_blacklist_count,
+                repository.topBarSettings().fourFingerGestureBlacklist.size)
+            contentDescription = activity.getString(R.string.setting_description,
+                activity.getString(R.string.four_finger_blacklist_title), text)
+        }
+        refreshLabel()
+        setOnClickListener {
+            val selectedPackages = repository.topBarSettings().fourFingerGestureBlacklist.toMutableSet()
+            val appsByPackage = linkedMapOf<String, BlacklistOption>()
+            apps.forEach { option ->
+                ComponentName.unflattenFromString(option.key.substringAfter('|'))?.packageName?.let { packageName ->
+                    appsByPackage.putIfAbsent(packageName, BlacklistOption(packageName, option.label, option.icon))
+                }
+            }
+            // Keep saved entries editable even when an app/profile is temporarily unavailable.
+            selectedPackages.filterNot(appsByPackage::containsKey).forEach { packageName ->
+                val manager = activity.packageManager
+                appsByPackage[packageName] = runCatching {
+                    val info = manager.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0))
+                    BlacklistOption(packageName, info.loadLabel(manager).toString(), info.loadIcon(manager))
+                }.getOrElse {
+                    BlacklistOption(packageName, activity.getString(R.string.four_finger_blacklist_unavailable_app),
+                        manager.defaultActivityIcon)
+                }
+            }
+            val options = appsByPackage.values.sortedBy { it.label.lowercase() }
+            val adapter = object : BaseAdapter() {
+                override fun getCount() = options.size
+                override fun getItem(position: Int) = options[position]
+                override fun getItemId(position: Int) = position.toLong()
+
+                override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                    val option = getItem(position)
+                    val row = convertView as? LinearLayout ?: LinearLayout(activity).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = Gravity.CENTER_VERTICAL
+                        minimumHeight = dp(activity, 64)
+                        setPaddingRelative(dp(activity, 24), dp(activity, 8), dp(activity, 12), dp(activity, 8))
+                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                        val highlight = android.util.TypedValue()
+                        if (activity.theme.resolveAttribute(android.R.attr.selectableItemBackground, highlight, true) &&
+                            highlight.resourceId != 0) setBackgroundResource(highlight.resourceId)
+                        addView(ImageView(activity).apply {
+                            scaleType = ImageView.ScaleType.FIT_CENTER
+                            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                        }, LinearLayout.LayoutParams(dp(activity, 40), dp(activity, 40)))
+                        addView(TextView(activity).apply {
+                            textSize = 16f
+                            setTextColor(SettingsPalette.text(activity))
+                            maxLines = 1
+                            ellipsize = TextUtils.TruncateAt.END
+                            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                        }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                            marginStart = dp(activity, 16)
+                            marginEnd = dp(activity, 8)
+                        })
+                        addView(MaterialCheckBox(activity), LinearLayout.LayoutParams(dp(activity, 48), dp(activity, 48)))
+                    }
+                    (row.getChildAt(0) as ImageView).setImageDrawable(
+                        option.icon.constantState?.newDrawable(activity.resources)?.mutate() ?: option.icon,
+                    )
+                    (row.getChildAt(1) as TextView).text = option.label
+                    val checkbox = row.getChildAt(2) as MaterialCheckBox
+                    checkbox.setOnCheckedChangeListener(null)
+                    checkbox.isChecked = option.packageName in selectedPackages
+                    checkbox.contentDescription = option.label
+                    checkbox.setOnCheckedChangeListener { _, checked ->
+                        if (checked) selectedPackages.add(option.packageName)
+                        else selectedPackages.remove(option.packageName)
+                    }
+                    row.setOnClickListener { checkbox.performClick() }
+                    return row
+                }
+            }
+            com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
+                .setTitle(R.string.four_finger_blacklist_title)
+                .setAdapter(adapter, null)
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    repository.setFourFingerGestureBlacklist(selectedPackages)
+                    refreshLabel()
+                }
+                .setNegativeButton(R.string.action_cancel, null)
+                .setNeutralButton(R.string.four_finger_blacklist_clear) { _, _ ->
+                    repository.setFourFingerGestureBlacklist(emptySet())
+                    refreshLabel()
+                }
+                .show().listView.itemsCanFocus = true
+        }
+    }
+
+    private fun loadApps(activity: AppCompatActivity): List<AppOption> {
+        // Profile keys come from the same privileged catalogue as the app strip;
+        // local permission differences must not produce a second key for a clone.
+        return LauncherAppRepository(activity).load(includeProfiles = false).asSequence()
+            .map { AppOption(it.key, it.userId, it.label, it.icon) }
+            .sortedBy { it.label.lowercase() }
+            .toList()
+    }
+
+    private fun appRow(activity: AppCompatActivity, option: AppOption, iconSizeDp: Int) =
+        LinearLayout(activity).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            minimumHeight = dp(activity, 60)
+            addView(ImageView(activity).apply {
+                setImageDrawable(option.icon)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }, LinearLayout.LayoutParams(dp(activity, iconSizeDp), dp(activity, iconSizeDp)))
+            addView(TextView(activity).apply {
+                text = option.label
+                textSize = 15f
+                setTextColor(SettingsPalette.text(activity))
+                setPadding(dp(activity, 13), 0, dp(activity, 8), 0)
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+            }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        }
+
+    private fun sectionCard(activity: AppCompatActivity) = MaterialCardView(activity).apply {
+        radius = dp(activity, 16).toFloat()
+        cardElevation = 0f
+        setCardBackgroundColor(SettingsPalette.surface(activity))
+        strokeColor = SettingsPalette.outline(activity)
+        strokeWidth = 0
+    }
+
+    private fun settingRow(
+        activity: AppCompatActivity,
+        title: String,
+        summary: String,
+        control: View,
+    ) = LinearLayout(activity).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        minimumHeight = dp(activity, 72)
+        setPadding(dp(activity, 16), dp(activity, 12), dp(activity, 16), dp(activity, 12))
+        addView(LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            addView(TextView(activity).apply {
+                text = title
+                textSize = 16f
+                setTextColor(SettingsPalette.text(activity))
+            }, matchWidth())
+            addView(sectionDescription(activity, summary), matchWidth())
+        }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+            marginEnd = dp(activity, 16)
+        })
+        addView(control, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+        ))
+    }
+
+    private fun settingSwitchRow(
+        activity: AppCompatActivity,
+        title: String,
+        summary: String,
+        checked: Boolean,
+        onCheckedChange: (Boolean) -> Unit,
+    ): View {
+        val toggle = SwitchMaterial(activity).apply {
+            contentDescription = activity.getString(R.string.setting_description, title, summary)
+            minimumWidth = dp(activity, 72)
+            minimumHeight = dp(activity, 48)
+            isChecked = checked
+            setOnCheckedChangeListener { _, enabled -> onCheckedChange(enabled) }
+        }
+        return settingRow(activity, title, summary, toggle).apply {
+            setOnClickListener { toggle.performClick() }
+            isFocusable = false
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+    }
+
+    private fun settingSliderRow(
+        activity: AppCompatActivity,
+        title: String,
+        summary: String,
+        initialValue: Int,
+        minValue: Int,
+        maxValue: Int,
+        step: Int,
+        formatValue: (Int) -> String,
+        onValueChange: (Int) -> Unit,
+    ) = LinearLayout(activity).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(activity, 16), dp(activity, 12), dp(activity, 16), dp(activity, 12))
+        addView(TextView(activity).apply {
+            text = title
+            textSize = 16f
+            setTextColor(SettingsPalette.text(activity))
+        }, matchWidth())
+        addView(sectionDescription(activity, summary), matchWidth())
+        val valueLabel = sectionDescription(activity, formatValue(initialValue))
+        addView(valueLabel, matchWidth())
+        var trackingValue = false
+        addView(com.google.android.material.slider.Slider(activity).apply {
+            valueFrom = minValue.toFloat()
+            valueTo = maxValue.toFloat()
+            stepSize = step.toFloat()
+            value = initialValue.toFloat()
+            contentDescription = activity.getString(R.string.setting_description, title, summary)
+            setLabelFormatter { formatValue(it.toInt()) }
+            addOnChangeListener { _, value, fromUser ->
+                valueLabel.text = formatValue(value.toInt())
+                if (fromUser && !trackingValue) onValueChange(value.toInt())
+            }
+            addOnSliderTouchListener(object : com.google.android.material.slider.Slider.OnSliderTouchListener {
+                override fun onStartTrackingTouch(slider: com.google.android.material.slider.Slider) {
+                    trackingValue = true
+                }
+                override fun onStopTrackingTouch(slider: com.google.android.material.slider.Slider) {
+                    trackingValue = false
+                    onValueChange(slider.value.toInt())
+                }
+            })
+        }, matchWidth())
+    }
+
+    private fun settingDivider(activity: AppCompatActivity) = View(activity).apply {
+        setBackgroundColor(SettingsPalette.outline(activity))
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dp(activity, 1),
+        ).apply {
+            marginStart = dp(activity, 16)
+            marginEnd = dp(activity, 16)
+        }
+    }
+
+    private fun modeButton(activity: AppCompatActivity, value: String) =
+        MaterialButton(activity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            id = View.generateViewId()
+            text = value
+            textSize = 14f
+            cornerRadius = dp(activity, 12)
+            insetTop = 0
+            insetBottom = 0
+            setTextColor(SettingsPalette.text(activity))
+        }
+
+    private fun sectionContent(activity: AppCompatActivity) = LinearLayout(activity).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(activity, 18), dp(activity, 18), dp(activity, 18), dp(activity, 18))
+    }
+
+    private fun sectionTitle(activity: AppCompatActivity, value: String) = TextView(activity).apply {
+        text = value
+        textSize = 18f
+        setTextColor(SettingsPalette.text(activity))
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+    }
+
+    private fun sectionDescription(activity: AppCompatActivity, value: String) = TextView(activity).apply {
+        text = value
+        textSize = 13f
+        setTextColor(SettingsPalette.secondary(activity))
+        setPadding(0, dp(activity, 4), 0, 0)
+    }
+
+    private fun subsectionTitle(activity: AppCompatActivity, value: String) = TextView(activity).apply {
+        text = value
+        textSize = 14f
+        setTextColor(SettingsPalette.secondary(activity))
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+        setPadding(0, dp(activity, 14), 0, dp(activity, 9))
+    }
+
+    private fun emptyHint(activity: AppCompatActivity, value: String) = TextView(activity).apply {
+        text = value
+        textSize = 13f
+        gravity = Gravity.CENTER
+        setTextColor(SettingsPalette.secondary(activity))
+        setPadding(dp(activity, 12), dp(activity, 18), dp(activity, 12), dp(activity, 18))
+        background = roundedBackground(SettingsPalette.container(activity), dp(activity, 12).toFloat())
+    }
+
+    private fun divider(activity: AppCompatActivity) = View(activity).apply {
+        setBackgroundColor(SettingsPalette.outline(activity))
+        layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dp(activity, 1),
+        ).apply { marginStart = dp(activity, 55) }
+    }
+
+    private fun roundedBackground(color: Int, radius: Float) = GradientDrawable().apply {
+        setColor(color)
+        cornerRadius = radius
+    }
+
+    private fun dp(activity: AppCompatActivity, value: Int): Int =
+        (value * activity.resources.displayMetrics.density).toInt()
+
+    private fun matchWidth() = LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT,
+        LinearLayout.LayoutParams.WRAP_CONTENT,
+    )
+
+    private const val MAX_TOP_APPS = 36
+}
