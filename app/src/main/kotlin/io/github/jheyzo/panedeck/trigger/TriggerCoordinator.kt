@@ -35,6 +35,31 @@ object TriggerCoordinator {
             return
         }
 
+        if (!TriggerBroadcastContract.isSupportedLauncher(homePackage)) {
+            // Third-party default desktop (e.g. Niagara): no launcher hook can
+            // answer, so SystemUI alone decides the toggle.
+            queryTarget(context, TriggerBroadcastContract.SYSTEM_UI_PACKAGE) systemUiQuery@ { systemUiState ->
+                if (systemUiState !is RequestResult.Ready) {
+                    onResult(systemUiState)
+                    return@systemUiQuery
+                }
+                runtimeMismatch("SystemUI", systemUiState)?.let { mismatch ->
+                    onResult(mismatch)
+                    return@systemUiQuery
+                }
+                val requestedActive = !systemUiState.active
+                setTarget(
+                    context,
+                    TriggerBroadcastContract.SYSTEM_UI_PACKAGE,
+                    requestedActive,
+                    source,
+                ) { systemUiSet ->
+                    onResult(systemUiSet)
+                }
+            }
+            return
+        }
+
         queryTarget(context, homePackage) homeQuery@ { homeState ->
             if (homeState !is RequestResult.Ready) {
                 onResult(homeState)
@@ -97,6 +122,22 @@ object TriggerCoordinator {
             onResult(RequestResult.NotReady("No resolved HOME package"))
             return
         }
+        if (!TriggerBroadcastContract.isSupportedLauncher(homePackage)) {
+            // Third-party default desktop (e.g. Niagara): no launcher hook can
+            // answer, so SystemUI alone is the source of truth for the tile.
+            queryTarget(context, TriggerBroadcastContract.SYSTEM_UI_PACKAGE) { systemUiState ->
+                when (systemUiState) {
+                    is RequestResult.Ready -> {
+                        onResult(
+                            runtimeMismatch("SystemUI", systemUiState)
+                                ?: systemUiState.copy(homePackage = homePackage),
+                        )
+                    }
+                    is RequestResult.NotReady -> onResult(systemUiState)
+                }
+            }
+            return
+        }
         queryTarget(context, homePackage) homeQuery@ { homeState ->
             if (homeState !is RequestResult.Ready) {
                 onResult(homeState)
@@ -137,6 +178,20 @@ object TriggerCoordinator {
         val homePackage = TriggerBroadcastContract.resolveHomePackage(context)
         if (homePackage == null) {
             onResult(RequestResult.NotReady("No resolved HOME package"))
+            return
+        }
+        if (!TriggerBroadcastContract.isSupportedLauncher(homePackage)) {
+            // Third-party default desktop (e.g. Niagara): no launcher hook can
+            // answer, so only SystemUI is set.
+            setTarget(
+                context,
+                TriggerBroadcastContract.SYSTEM_UI_PACKAGE,
+                active,
+                source,
+                onlyIfInactive,
+            ) { systemUiSet ->
+                onResult(systemUiSet)
+            }
             return
         }
         setTarget(

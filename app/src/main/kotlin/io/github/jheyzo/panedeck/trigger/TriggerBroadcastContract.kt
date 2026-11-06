@@ -18,7 +18,6 @@ object TriggerBroadcastContract {
     const val EXTRA_COMPARE_QUERY = "io.github.jheyzo.panedeck.extra.COMPARE_QUERY"
     const val EXTRA_COMPARE_MODE = "io.github.jheyzo.panedeck.extra.COMPARE_MODE"
     const val ACTION_LAUNCHER_APP_REQUEST = "io.github.jheyzo.panedeck.action.LAUNCHER_APP_REQUEST"
-    const val ACTION_FOUR_FINGER_WORKSPACE = "io.github.jheyzo.panedeck.action.FOUR_FINGER_WORKSPACE"
     const val CONTROL_PERMISSION = "io.github.jheyzo.panedeck.permission.CONTROL_WORKSPACE"
     const val EXTRA_SOURCE = "io.github.jheyzo.panedeck.extra.TRIGGER_SOURCE"
     const val EXTRA_ACTIVE = "io.github.jheyzo.panedeck.extra.WORKSPACE_ACTIVE"
@@ -36,6 +35,15 @@ object TriggerBroadcastContract {
     const val EXTRA_BYPASS_MULTI_APP_CHOOSER =
         "io.github.jheyzo.panedeck.extra.BYPASS_MULTI_APP_CHOOSER"
     const val RUNTIME_PROTOCOL_VERSION = 39
+    /**
+     * Desktops the launcher hook supports (mirrors ColorOsLauncherHook).
+     * A third-party default desktop (e.g. Niagara) has no hook, so the tile
+     * and toggle flows must not wait for it to answer.
+     */
+    val SUPPORTED_LAUNCHER_PACKAGES = setOf("com.android.launcher", "com.oplus.launcher")
+
+    fun isSupportedLauncher(packageName: String): Boolean =
+        packageName in SUPPORTED_LAUNCHER_PACKAGES
     const val RESULT_HANDLED = 0x4E58
     const val RESULT_NOT_READY = 0
 
