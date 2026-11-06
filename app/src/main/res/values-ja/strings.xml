@@ -16,8 +16,6 @@
     <string name="tile_add_manually">クイック設定の編集画面から PaneDeck を追加してください。</string>
     <string name="tile_entry_title">クイック設定ショートカット</string>
     <string name="tile_entry_summary">PaneDeck タイルを追加</string>
-    <string name="gesture_title">ステータスバーのジェスチャー</string>
-    <string name="gesture_summary">右側から左にスワイプして、ワークスペースを開閉します。</string>
     <string name="background_swipe_title">小ウィンドウをスワイプしてバックグラウンドへ</string>
     <string name="background_swipe_summary">左側のウィンドウは左へ、右側のウィンドウは右へスワイプします。</string>
     <string name="window_animation_duration_title">ウィンドウ切り替えアニメーションの時間</string>
@@ -84,9 +82,9 @@
     <string name="font_system_hant">システムゴシック · 繁体字中国語</string>
     <string name="app_icon_description">PaneDeck アイコン</string>
     <string name="about_tagline">一歩、さらにもう一歩。</string>
-    <string name="about_tribute">OneStep に敬意を表し、ColorOS 標準ランチャーでサイドマルチタスクの体験を継承します。</string>
+    <string name="about_tribute">PaneDeck は NeXtep をベースにした改変版です。ColorOS のネイティブデスクトップで OneStep 風のサイドマルチタスクを引き継ぎ、ワンタップ価格比較を追加しました。</string>
     <string name="about_windows_title">メインウィンドウ 1 つ、小ウィンドウ 3 つ</string>
-    <string name="about_features">複数のアプリを並べて操作し、ドラッグでウィンドウを交換したり、履歴カードからアプリを続けて追加したりできます。小ウィンドウを上部の操作エリアにドラッグすると、バックグラウンドに戻せます。上部にはメディア操作、よく使うアプリ、カスタムテキストなども表示できます。</string>
+    <string name="about_features">複数のアプリを並べて操作し、ドラッグでウィンドウを交換したり、履歴カードからアプリを続けて追加したりできます。小ウィンドウを上部の操作エリアにドラッグすると、バックグラウンドに戻せます。上部にはメディア操作、よく使うアプリ、カスタムテキスト、一鍵価格比較なども表示できます。</string>
     <string name="about_compatibility">LSPosed を通じてシステム UI に組み込み、端末の元のランチャーを維持します。システム更新後は、一部の機能に調整が必要になる場合があります。</string>
     <string name="about_credits">ライセンス · Apache License 2.0\n作者 · JHeyzo\nNeXtep (lujinxin) を基に開発</string>
     <string name="acknowledgements_title">謝辞</string>
@@ -142,13 +140,7 @@
     <string name="apps_none_available">起動できるアプリがありません</string>
     <string name="launcher_icon_title">アプリアイコン</string>
     <string name="launcher_icon_summary">季節に合わせるか、手動で選択します。ダークテーマや省電力モードでは一時的に夜用アイコンを使います。</string>
-    <string name="launcher_icon_automatic">季節に合わせる</string>
-    <string name="launcher_icon_automatic_current">自動 · %1$s</string>
     <string name="launcher_icon_default">標準</string>
-    <string name="launcher_icon_spring">春</string>
-    <string name="launcher_icon_summer">夏</string>
-    <string name="launcher_icon_autumn">秋</string>
-    <string name="launcher_icon_winter">冬</string>
     <string name="launcher_icon_night">夜</string>
     <string name="launcher_icon_change_failed">アイコンを変更できませんでした。もう一度お試しください。</string>
     <string name="control_video_title">動画</string>
