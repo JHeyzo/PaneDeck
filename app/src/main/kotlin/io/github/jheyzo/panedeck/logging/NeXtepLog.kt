@@ -4,7 +4,7 @@ import android.os.Build
 import android.util.Log
 
 object NeXtepLog {
-    private const val TAG = "NeXtep"
+    private const val TAG = "PaneDeck"
 
     fun debug(feature: String, message: String) = write(Log.DEBUG, feature, message, null)
     fun info(feature: String, message: String) = write(Log.INFO, feature, message, null)
