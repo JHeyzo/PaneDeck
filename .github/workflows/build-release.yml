@@ -70,3 +70,15 @@ jobs:
           name: panedeck-1.0.0
           path: app/build/outputs/apk/release/panedeck-1.0.0.apk
           if-no-files-found: error
+
+      - name: Publish to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v1.0.0"
+          APK="app/build/outputs/apk/release/panedeck-1.0.0.apk"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" --clobber
+          else
+            gh release create "$TAG" "$APK" --title "PaneDeck 1.0.0" --notes "PaneDeck 1.0.0 release build."
+          fi
