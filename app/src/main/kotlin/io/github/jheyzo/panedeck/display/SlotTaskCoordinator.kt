@@ -314,6 +314,38 @@ class SlotTaskCoordinator(
     }
 
     /**
+     * Ported from Panes 3.0.5 (yishisanren, Apache License 2.0). Makes
+     * room for a compare search in an occupied slot: the old task is
+     * parked back to the default display (preserved in recents, below
+     * the main app) — never force-stopped or removed just to make room
+     * for an explicitly requested search. The slot is left Ready so the
+     * new search app can launch into it. A no-op when the target app is
+     * already on the slot's display, or when the slot is empty.
+     * (Panes also wakes the pane first; PaneDeck has no slot resume —
+     * its own park path in parkTasksBeforeExit parks directly, and the
+     * compare prepare step already activates the destination displays.)
+     */
+    private fun replaceSearchDestination(index: Int, intent: Intent) {
+        val display = checkNotNull(slots[index].displayId())
+        val targetUser = io.github.jheyzo.panedeck.framework.TaskInfoCompat.userIdentifier(
+            intent.targetUser() ?: android.os.Process.myUserHandle())
+        val tasks = taskRepository.runningTasks().filter { it.displayId == display }
+        if (tasks.any { it.component.packageName == intent.component?.packageName && it.userId == targetUser }) return
+        tasks.forEach { task ->
+            val record = slotRecords[index]
+            val layout = if (record.retainedTaskId == task.taskId) record.originalLayout else null
+            val original = layout ?: defaultMainLayout(task.resizeMode)
+            WindowContainerTransactionCompat.parkInDefaultDisplay(checkNotNull(task.token),
+                original.defaultDisplayBounds(), original.densityDpi, original.windowingMode).getOrThrow()
+            original.resizeMode?.let { ActivityTaskManagerCompat.setTaskResizeable(task.taskId, it).getOrThrow() }
+        }
+        check(taskRepository.runningTasks().none { it.displayId == display }) { "Previous slot task is still attached" }
+        clearSlotAssignment(index)
+        slotRecords[index].exitTask = null
+        setState(index, SlotState.Ready(display), "search replaced previous window")
+    }
+
+    /**
      * Sequenced compare launch, adapted from Panes 3.0.5
      * SlotTaskCoordinator.openSearches: the first source goes to the main
      * window (via the existing external main path), the rest go to slots
@@ -371,7 +403,16 @@ class SlotTaskCoordinator(
             schedule = { delay, action -> handler.postDelayed(action, delay) },
             start = { request ->
                 if (request.slot == null) openExternalInMain(request.intent).getOrThrow()
-                else launchExternalInSlot(request.intent, request.slot).getOrThrow()
+                else {
+                    // A compare round may land on an occupied slot: park the
+                    // old task back to the default display first (preserved
+                    // in recents), so assignIntent does not fail with
+                    // "Slot is occupied". A no-op on an empty slot.
+                    if (slotRecords.getOrNull(request.slot)?.state is SlotState.Occupied) {
+                        replaceSearchDestination(request.slot, request.intent)
+                    }
+                    launchExternalInSlot(request.intent, request.slot).getOrThrow()
+                }
             },
             ready = { request ->
                 val component = checkNotNull(request.intent.component)
@@ -1020,7 +1061,12 @@ class SlotTaskCoordinator(
                 SlotState.Occupied(targetDisplayId, existing.taskId, existing.component),
                 "drop matched target task",
             )
-            return Result.success(Unit)
+            // A compare search re-delivers its deep link even when the app
+            // is already in the slot: without it a re-search with a new
+            // keyword leaves the slot on the old keyword (only the main
+            // window, which always launches fresh, would update). Panes
+            // 3.0.5 does the same (slots[slot].launch on external).
+            return if (external) slots[slotIndex].launch(normalized) else Result.success(Unit)
         }
 
         if (occupied != null) {
@@ -1789,7 +1835,7 @@ class SlotTaskCoordinator(
             ?.activityInfo
             ?.let { ComponentName(it.packageName, it.name) }
             ?: return null
-        // Seasonal launcher aliases lead through a no-display entry activity. Workspace
+        // Launcher aliases lead through a no-display entry activity. Workspace
         // task reuse and presentation must target the real settings activity instead.
         val component = if (requestedComponent.packageName == TriggerBroadcastContract.MODULE_PACKAGE) {
             settingsComponent

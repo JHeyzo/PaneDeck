@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Bitmap
+import android.graphics.Outline
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.view.DragEvent
@@ -11,10 +12,12 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.TextureView
 import android.view.View
+import android.view.ViewOutlineProvider
 import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.TextView
 import io.github.jheyzo.panedeck.logging.NeXtepLog
+import io.github.jheyzo.panedeck.systemui.WorkbenchAppearance
 import io.github.jheyzo.panedeck.workspace.SidebarSide
 
 class TaskSwitcherView(
@@ -42,6 +45,7 @@ class TaskSwitcherView(
         background = statusBackground()
     }
     private var listener: Listener? = null
+    private var appearance: WorkbenchAppearance = WorkbenchAppearance.resolve(context)
     private var busy = false
     private var currentState: SlotState = SlotState.Empty
     private var waiting = false
@@ -60,10 +64,19 @@ class TaskSwitcherView(
     )
 
     init {
+        // The slot is a rounded card (Panes): a faint card tone over the
+        // frosted panel. No outline stroke: the user reads any 1dp border
+        // around the slots as the dashed lines he asked to remove.
+        background = GradientDrawable().apply {
+            // Radius starts at 0; applyCornerRadius() (called just below,
+            // and again from setCornerRadiusPx) sets the real value.
+            cornerRadius = 0f
+            setColor(appearance.slotCard)
+        }
         clipToOutline = false
         isClickable = true
-        setBackgroundColor(Color.TRANSPARENT)
         addView(textureView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        applyCornerRadius()
         addView(
             statusView,
             LayoutParams(dp(30), dp(30), Gravity.CENTER),
@@ -174,6 +187,37 @@ class TaskSwitcherView(
         }
     }
 
+    // Slot content is a TextureView over a virtual display: the task leash
+    // inside that display is rounded, but the TextureView itself is square,
+    // so the visible slot stays square. Round the view as well.
+    private var cornerRadiusPx = 0f
+
+    fun setCornerRadiusPx(radiusPx: Float) {
+        cornerRadiusPx = radiusPx
+        applyCornerRadius()
+    }
+
+    internal fun setAppearance(value: WorkbenchAppearance) {
+        appearance = value
+        (background as? GradientDrawable)?.apply {
+            setColor(value.slotCard)
+        }
+    }
+
+    private fun applyCornerRadius() {
+        val radius = cornerRadiusPx
+        textureView.outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: Outline) {
+                outline.setRoundRect(0, 0, view.width, view.height, radius)
+            }
+        }
+        textureView.clipToOutline = radius > 0f
+        // The card background and the view's own clip follow the same
+        // radius, so the empty card and the occupied content round together.
+        (background as? GradientDrawable)?.cornerRadius = radius
+        clipToOutline = radius > 0f
+    }
+
     fun replaceTextureView(listener: TextureView.SurfaceTextureListener): TextureView {
         backgroundSwipe.cancel()
         waiting = true
@@ -190,6 +234,7 @@ class TaskSwitcherView(
                 0,
                 LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT),
             )
+            applyCornerRadius()
         }
     }
 
