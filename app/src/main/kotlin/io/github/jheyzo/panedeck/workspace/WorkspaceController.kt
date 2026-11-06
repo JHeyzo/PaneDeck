@@ -22,6 +22,16 @@ class WorkspaceController(
             onStateChanged()
         }
 
+    init {
+        // Swipe-up to go home from an app in the workspace exits it; the
+        // next swipe-up-and-hold then shows the phone's global recents.
+        mainTaskPresenter.onHomeFromApp = {
+            if (state is WorkspaceState.Active || state is WorkspaceState.Suspended) {
+                setActive(false)
+            }
+        }
+    }
+
     fun setActive(active: Boolean): Boolean {
         check(Looper.myLooper() == Looper.getMainLooper()) {
             "Workspace transitions must run on the main thread"

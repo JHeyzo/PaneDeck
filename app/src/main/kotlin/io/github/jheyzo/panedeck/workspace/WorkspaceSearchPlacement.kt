@@ -6,12 +6,11 @@ package io.github.jheyzo.panedeck.workspace
  * name and the size bound changed (see below).
  *
  * PaneDeck change vs Panes: packages is 1..4, not 1..5, because the
- * workspace is 1 main window + 3 slots. Panes also falls back to an
- * already-occupied slot when no empty slot exists; PaneDeck does not,
- * because its slot launch path cannot replace an occupied slot (it
- * fails with "Slot is occupied"). Here a round that does not fit in
- * the currently empty slots throws NoSpace, and the caller reports it
- * instead of silently replacing an app the user is looking at.
+ * workspace is 1 main window + 3 slots. An occupied slot is a valid
+ * fallback (as in Panes): the compare replaces it via
+ * SlotTaskCoordinator.replaceSearchDestination, which parks the old
+ * task back to the default display (preserved in recents, never
+ * force-stopped) before the new search app launches into the slot.
  */
 /** Reserve existing matches first, then empty or replaceable windows. */
 internal object WorkspaceSearchPlacement {
@@ -33,7 +32,7 @@ internal object WorkspaceSearchPlacement {
             matches[name]?.let { return@map it }
             val candidates = available.indices.filter { it !in reserved && it !in unavailable }
             val index = candidates.firstOrNull { available[it] == null }
-                ?: throw NoSpace()
+                ?: candidates.firstOrNull() ?: throw NoSpace()
             check(reserved.add(index))
             index
         }
