@@ -13,6 +13,9 @@ import android.os.Process
 import android.os.UserHandle
 import io.github.jheyzo.panedeck.logging.NeXtepLog
 import io.github.jheyzo.panedeck.systemui.SystemDialogLayoutController
+import io.github.jheyzo.panedeck.trigger.TriggerBroadcastContract
+import io.github.jheyzo.panedeck.trigger.TriggerCoordinator
+import io.github.jheyzo.panedeck.trigger.TriggerSource
 import io.github.jheyzo.panedeck.workspace.SystemServerWorkspaceBridge
 import io.github.jheyzo.panedeck.xposed.HookGuard
 import io.github.libxposed.api.XposedInterface
@@ -68,6 +71,31 @@ object ColorOsLauncherHook {
                     method.isAccessible = true
                     module.hook(method).intercept(object : XposedInterface.Hooker {
                         override fun intercept(chain: XposedInterface.Chain): Any? {
+                            // Swipe-up-and-hold shows the overview, but while the
+                            // workspace is active its tasks live on a virtual
+                            // display and the overview only shows the main
+                            // window. Exit the workspace first, so the overview
+                            // the user sees (on this hold, or on the next one
+                            // they do to look at the background) is the phone's
+                            // global recents. The exit is async; the overview
+                            // itself is left to proceed.
+                            if (method.name == "setOverviewStateEnabled" &&
+                                chain.args.firstOrNull() == true
+                            ) {
+                                val view = chain.thisObject as? View
+                                val context = view?.context
+                                if (context != null &&
+                                    SystemServerWorkspaceBridge.isWorkspaceActive(context)
+                                ) {
+                                    NeXtepLog.info(
+                                        "launcher_recents",
+                                        "Overview shown while workspace active; exiting workspace first",
+                                    )
+                                    TriggerCoordinator.requestSet(
+                                        context, false, TriggerSource.RECENTS,
+                                    ) { _ -> }
+                                }
+                            }
                             val result = chain.proceed()
                             (chain.thisObject as? View)?.let(LauncherRecentTaskSelection::observe)
                             return result
