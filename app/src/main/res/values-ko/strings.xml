@@ -16,8 +16,6 @@
     <string name="tile_add_manually">빠른 설정 편집 화면에서 PaneDeck을 추가하세요.</string>
     <string name="tile_entry_title">빠른 설정 바로가기</string>
     <string name="tile_entry_summary">PaneDeck 타일 추가</string>
-    <string name="gesture_title">상태 표시줄 제스처</string>
-    <string name="gesture_summary">오른쪽에서 왼쪽으로 스와이프하여 작업 공간을 열거나 닫습니다.</string>
     <string name="background_swipe_title">작은 창을 스와이프하여 백그라운드로 이동</string>
     <string name="background_swipe_summary">왼쪽 작은 창은 왼쪽으로, 오른쪽 작은 창은 오른쪽으로 스와이프합니다.</string>
     <string name="window_animation_duration_title">창 전환 애니메이션 시간</string>
@@ -84,9 +82,9 @@
     <string name="font_system_hant">시스템 고딕 · 중국어 번체</string>
     <string name="app_icon_description">PaneDeck 아이콘</string>
     <string name="about_tagline">한 걸음, 그리고 또 한 걸음.</string>
-    <string name="about_tribute">OneStep에 경의를 표하며, ColorOS 기본 런처에서 측면 멀티태스킹 경험을 이어갑니다.</string>
+    <string name="about_tribute">PaneDeck은 NeXtep 기반의 수정 버전입니다. 네이티브 ColorOS 데스크톱에서 OneStep 스타일의 사이드 멀티태스킹을 이어가며 원탭 가격 비교를 추가했습니다.</string>
     <string name="about_windows_title">기본 창 하나, 작은 창 세 개</string>
-    <string name="about_features">앱을 나란히 사용하고, 드래그로 창을 바꾸며, 최근 앱 카드에서 앱을 연속으로 추가할 수 있습니다. 작은 창을 상단 제어 영역으로 드래그하면 백그라운드로 이동합니다. 상단에는 미디어 제어, 자주 사용하는 앱, 사용자 지정 텍스트 등의 기능도 있습니다.</string>
+    <string name="about_features">앱을 나란히 사용하고, 드래그로 창을 바꾸며, 최근 앱 카드에서 앱을 연속으로 추가할 수 있습니다. 작은 창을 상단 제어 영역으로 드래그하면 백그라운드로 이동합니다. 상단에는 미디어 제어, 자주 사용하는 앱, 사용자 지정 텍스트, 원탭 가격 비교 등의 기능도 있습니다.</string>
     <string name="about_compatibility">LSPosed를 통해 시스템 UI에 통합되며 휴대전화의 기존 런처를 유지합니다. 시스템 업데이트 후 일부 기능은 조정이 필요할 수 있습니다.</string>
     <string name="about_credits">라이선스 · Apache License 2.0\n개발자 · JHeyzo\nlujinxin의 NeXtep 기반</string>
     <string name="acknowledgements_title">감사의 말</string>
@@ -142,13 +140,7 @@
     <string name="apps_none_available">실행할 수 있는 앱이 없습니다</string>
     <string name="launcher_icon_title">앱 아이콘</string>
     <string name="launcher_icon_summary">계절에 맞추거나 직접 선택합니다. 다크 테마나 절전 모드에서는 일시적으로 야간 아이콘을 사용합니다.</string>
-    <string name="launcher_icon_automatic">계절에 맞춤</string>
-    <string name="launcher_icon_automatic_current">자동 · %1$s</string>
     <string name="launcher_icon_default">기본</string>
-    <string name="launcher_icon_spring">봄</string>
-    <string name="launcher_icon_summer">여름</string>
-    <string name="launcher_icon_autumn">가을</string>
-    <string name="launcher_icon_winter">겨울</string>
     <string name="launcher_icon_night">야간</string>
     <string name="launcher_icon_change_failed">아이콘을 변경할 수 없습니다. 다시 시도해 주세요.</string>
     <string name="control_video_title">동영상</string>
