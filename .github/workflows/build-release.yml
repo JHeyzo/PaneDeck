@@ -59,14 +59,14 @@ jobs:
             --ks-pass "pass:$KEYSTORE_PASSWORD" \
             --ks-key-alias "$KEY_ALIAS" \
             --key-pass "pass:$KEY_PASSWORD" \
-            --out app/build/outputs/apk/release/panedeck-1.0.0-release-signed.apk \
+            --out app/build/outputs/apk/release/panedeck-1.0.0.apk \
             app/build/outputs/apk/release/app-release-unsigned.apk
-          "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/panedeck-1.0.0-release-signed.apk
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/panedeck-1.0.0.apk
           rm -f /tmp/panedeck.keystore
 
       - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: panedeck-1.0.0-release-signed
-          path: app/build/outputs/apk/release/panedeck-1.0.0-release-signed.apk
+          name: panedeck-1.0.0
+          path: app/build/outputs/apk/release/panedeck-1.0.0.apk
           if-no-files-found: error
