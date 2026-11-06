@@ -52,7 +52,16 @@ object WorkspaceWallpaperBackdrop {
         // A live service may need a few frames after FLAG_SHOW_WALLPAPER is set.
         // Retain the last rendered frame while the controller retries, rather than
         // displaying WallpaperManager's unrelated previous static image.
-        if (manager.wallpaperInfo != null) return@runCatching null
+        // But ColorOS serves even plain preset images through a live service,
+        // so a live wallpaperInfo must not veto the drawable fallback outright:
+        // without it the main-pane corners have no frosted wallpaper at all
+        // and look square. The drawable is the best available frame then.
+        if (manager.wallpaperInfo != null) {
+            NeXtepLog.warn(
+                "wallpaper_backdrop",
+                "Live wallpaper service present; trying static drawable fallback",
+            )
+        }
         manager.forgetLoadedWallpaper()
         val wallpaper = manager.drawable?.constantState?.newDrawable(context.resources)?.mutate()
             ?: return@runCatching null
@@ -187,9 +196,11 @@ private class WallpaperCropDrawable(
 
     private fun drawTint(canvas: Canvas) {
         // Neutral translucent layers soften contrast without blurring foreground content.
+        // Strong enough to read as frosted glass when no wallpaper frame was
+        // captured at all (then the main-pane corners would otherwise look square).
         if (strength > 0) {
-            canvas.drawColor(Color.argb(strength * 32 / 100, 16, 23, 34))
-            canvas.drawColor(Color.argb(strength * 20 / 100, 235, 241, 248))
+            canvas.drawColor(Color.argb(strength * 64 / 100, 16, 23, 34))
+            canvas.drawColor(Color.argb(strength * 48 / 100, 235, 241, 248))
         }
     }
 

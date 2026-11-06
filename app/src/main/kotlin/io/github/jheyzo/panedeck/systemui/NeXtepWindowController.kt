@@ -383,6 +383,16 @@ class NeXtepWindowController(
         slotWindows.forEach { it.view.setBackgroundSwipeEnabled(enabled) }
     }
 
+    fun setSlotCornerRadiusPx(radiusPx: Float) {
+        slotWindows.forEach { it.view.setCornerRadiusPx(radiusPx) }
+    }
+
+    fun setMainPaneCornerRadiusPx(radiusPx: Float) {
+        // The frame drawable reads the radius from TaskSurfaceCompat when
+        // built; rebuilding here picks up the new value.
+        refreshMainFrame(geometry())
+    }
+
     fun reconfigure(rotationOnly: Boolean = false): Result<WorkspaceGeometry> = runCatching {
         clearHomePreview()
         initializeIfNeeded()
@@ -514,6 +524,9 @@ class NeXtepWindowController(
             title = "NeXtepContentPanel",
             view = FrameLayout(context).apply {
                 setBackgroundColor(Color.TRANSPARENT)
+                // The main pane's rounded corners are the highlight view's
+                // frame drawable (WorkbenchFrameDrawable, ported from Panes):
+                // a mask drawn on top of the task, not a backdrop behind it.
                 addView(View(context).also { contentHighlightView = it })
             },
             width = geometry.contentWidth,
@@ -684,28 +697,15 @@ class NeXtepWindowController(
         }
     }
 
-    private fun sidebarPanel(geometry: WorkspaceGeometry): View = object : FrameLayout(context) {
-        private val dividerPaint = android.graphics.Paint().apply {
-            color = Color.argb(90, 255, 255, 255)
-        }
-
-        override fun dispatchDraw(canvas: android.graphics.Canvas) {
-            super.dispatchDraw(canvas)
-            val thickness = resources.displayMetrics.density
-            val edge = if (logicalSidebarSide(this@NeXtepWindowController.geometry()) == SidebarSide.LEFT) width - thickness else 0f
-            canvas.drawRect(edge, 0f, edge + thickness, height.toFloat(), dividerPaint)
-            slotWindows.drop(1).forEach { slot ->
-                val y = slot.view.top.toFloat()
-                canvas.drawRect(0f, y - thickness, width.toFloat(), y, dividerPaint)
-            }
-        }
-    }.apply {
+    private fun sidebarPanel(geometry: WorkspaceGeometry): View = FrameLayout(context).apply {
         sidebarView = this
         setBackgroundColor(Color.TRANSPARENT)
         if (FeatureGate.VIRTUAL_DISPLAY_SLOTS.defaultEnabled) {
             slotWindows = List(WORKSPACE_SLOT_COUNT) { index -> VirtualDisplaySlot(context, index) }
             slotWindows.forEach { slot ->
                 slot.view.setBackgroundSwipeEnabled(slotBackgroundSwipeEnabled)
+                slot.view.setAppearance(resolveAppearance())
+                slot.view.setCornerRadiusPx(TaskSurfaceCompat.slotPaneCornerRadiusPx)
                 addView(slot.view)
             }
             applySlotLayout(this, geometry)
@@ -744,7 +744,7 @@ class NeXtepWindowController(
                     setStroke(dp(2).toInt(), Color.rgb(80, 216, 224))
                     cornerRadius = dp(8)
                 }
-            } else android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+            } else mainFrame(geometry())
     }
 
     private fun dropInternalPayload(
@@ -1054,6 +1054,22 @@ class NeXtepWindowController(
             ))
         }
         applySidebarBackdrop(geometry)
+        // Slots follow the system appearance too (their card tone), so a
+        // night-mode change recolors them along with the main frame.
+        // Re-apply the slot radius here as well: the config can arrive
+        // before the slots exist (or the controller), so the one-shot
+        // setSlotCornerRadiusPx on config arrival can be skipped and the
+        // empty slots stay square while occupied ones round via the leash.
+        slotWindows.forEach {
+            it.view.setAppearance(resolveAppearance())
+            it.view.setCornerRadiusPx(TaskSurfaceCompat.slotPaneCornerRadiusPx)
+        }
+        // Set (or recut) the main pane's corner frame. A drag highlight is
+        // a GradientDrawable; never clobber it mid-drag — the drag end
+        // restores the frame through highlightInternalDragTarget.
+        if (contentHighlightView?.background !is android.graphics.drawable.GradientDrawable) {
+            contentHighlightView?.background = mainFrame(geometry)
+        }
     }
 
     private fun applySidebarBackdrop(geometry: WorkspaceGeometry) {
@@ -1062,6 +1078,38 @@ class NeXtepWindowController(
             WorkspaceWallpaperBackdrop.crop(wallpaperBitmap, panel.sidebarLeft, panel.sidebarTop,
                 frostStrength, wallpaperRotation, panel.displayRotation),
         )
+    }
+
+    /** No appearance preference: follow the device's night mode, as Panes does by default. */
+    private fun resolveAppearance(): WorkbenchAppearance = WorkbenchAppearance.resolve(context)
+
+    /** The panels' frosted wallpaper as seen at [left], [top] on screen; null before a capture.
+     * No extra panel tone: the hollowed corners must read as the same background as the
+     * control area above them. The panelEnd overlay darkened them against the top bar,
+     * which showed as a seam at the main pane's top-right corner and as a line along
+     * its top edge. */
+    private fun panelBackdrop(left: Int, top: Int,
+                              geometry: WorkspaceGeometry): android.graphics.drawable.Drawable? = wallpaperBitmap?.let {
+        val panel = geometry.rotatedTo(0)
+        WorkspaceWallpaperBackdrop.crop(it, left, top, frostStrength, wallpaperRotation, panel.displayRotation)
+    }
+
+    // No resting outline: on the screen edge it read as a gap the slots, flush on their side, do not have.
+    // The radius follows the pane-rounded setting (TaskSurfaceCompat), not Panes' fixed 14dp.
+    // Stroke is 0, not 1dp transparent: even a transparent stroke leaves a
+    // light anti-aliased band along the pane's top edge (the "white line" at
+    // the main window's top). The frame draws only the frosted corners.
+    private fun mainFrame(geometry: WorkspaceGeometry): WorkbenchFrameDrawable {
+        val appearance = resolveAppearance()
+        val panel = geometry.rotatedTo(0)
+        return WorkbenchFrameDrawable(appearance.opaquePanel,
+            Color.TRANSPARENT, TaskSurfaceCompat.mainPaneCornerRadiusPx, 0f,
+            panelBackdrop(panel.contentLeft, panel.contentTop, geometry))
+    }
+
+    /** Recut the main pane's corners after the wallpaper frame or the pane itself changed. */
+    private fun refreshMainFrame(geometry: WorkspaceGeometry) {
+        contentHighlightView?.takeIf { it.background is WorkbenchFrameDrawable }?.background = mainFrame(geometry)
     }
 
     private fun logicalSidebarSide(geometry: WorkspaceGeometry): SidebarSide =

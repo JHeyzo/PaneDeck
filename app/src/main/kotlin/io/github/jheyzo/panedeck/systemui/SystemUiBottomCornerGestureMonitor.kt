@@ -7,6 +7,8 @@ import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.view.Choreographer
 import android.view.Display
 import android.view.InputDevice
@@ -51,6 +53,11 @@ object SystemUiBottomCornerGestureMonitor {
                 .getDisplay(Display.DEFAULT_DISPLAY) ?: error("Default display unavailable")
             val keyguard = context.getSystemService(KeyguardManager::class.java)
             val power = context.getSystemService(PowerManager::class.java)
+            // Haptic confirmation (v21): the user (2026-11-06 14:30) reports
+            // the gesture activates with no vibration and no tactile feel, so
+            // it is unclear it triggered until the workspace visibly opens.
+            // A short tick on confirm covers both gestures (corner + two-finger).
+            val vibrator = context.getSystemService(Vibrator::class.java)
             val managerClass = Class.forName("android.hardware.input.InputManagerGlobal")
             val manager = managerClass.getMethod("getInstance").invoke(null)
             val inputMonitor = managerClass.getMethod(
@@ -62,6 +69,7 @@ object SystemUiBottomCornerGestureMonitor {
             val canActivate = { power?.isInteractive == true && keyguard?.isKeyguardLocked == false }
             var density = context.resources.displayMetrics.density
             var detector = BottomCornerGestureDetector(density, canActivate)
+            var twoFingerDetector = TwoFingerSwipeGestureDetector(density, canActivate)
             var rotation = display.rotation
             @Suppress("DEPRECATION")
             fun refreshViewport() {
@@ -76,6 +84,7 @@ object SystemUiBottomCornerGestureMonitor {
                     rotation = updatedRotation
                     density = updatedDensity
                     detector = BottomCornerGestureDetector(density, canActivate)
+                    twoFingerDetector = TwoFingerSwipeGestureDetector(density, canActivate)
                 }
             }
             refreshViewport()
@@ -109,31 +118,62 @@ object SystemUiBottomCornerGestureMonitor {
                         // callback fails.
                         runCatching {
                             val event = args?.firstOrNull() as? MotionEvent
+                            // Either gesture can start a stream: bottom-corner on
+                            // ACTION_DOWN, two-finger on ACTION_POINTER_DOWN.
+                            val relevantAction = event?.actionMasked == MotionEvent.ACTION_DOWN ||
+                                event?.actionMasked == MotionEvent.ACTION_POINTER_DOWN ||
+                                detector.isObserving || twoFingerDetector.isObserving
                             if (event == null ||
                                 !event.isFromSource(InputDevice.SOURCE_TOUCHSCREEN) ||
-                                !SystemUiRuntime.isBottomCornerGestureEnabled() ||
-                                (event.actionMasked != MotionEvent.ACTION_DOWN && !detector.isObserving)
+                                (!SystemUiRuntime.isBottomCornerGestureEnabled() &&
+                                    !SystemUiRuntime.isTwoFingerSwipeGestureEnabled()) ||
+                                !relevantAction
                             ) {
                                 detector.reset()
+                                twoFingerDetector.reset()
                                 false
                             } else {
-                                val result = detector.observe(
-                                    event.actionMasked, event.rawX, event.rawY, event.pointerCount,
-                                    event.eventTime, size.x, size.y, rotation,
-                                )
-                                if (result == BottomCornerGestureDetector.Result.CONFIRMED) {
-                                    // Cancel app and navigation input only after the diagonal
-                                    // is confirmed.
+                                var confirmed: String? = null
+                                var toggle: (() -> Unit)? = null
+                                if (SystemUiRuntime.isBottomCornerGestureEnabled()) {
+                                    val result = detector.observe(
+                                        event.actionMasked, event.rawX, event.rawY, event.pointerCount,
+                                        event.eventTime, size.x, size.y, rotation,
+                                    )
+                                    if (result == BottomCornerGestureDetector.Result.CONFIRMED) {
+                                        confirmed = detector.lastConfirmed
+                                        toggle = SystemUiRuntime::toggleWorkspaceFromBottomCornerGesture
+                                    }
+                                }
+                                if (confirmed == null && SystemUiRuntime.isTwoFingerSwipeGestureEnabled()) {
+                                    val result = twoFingerDetector.observe(event, size.x, size.y)
+                                    if (result == TwoFingerSwipeGestureDetector.Result.CONFIRMED) {
+                                        confirmed = twoFingerDetector.lastConfirmed
+                                        toggle = SystemUiRuntime::toggleWorkspaceFromTwoFingerSwipeGesture
+                                    }
+                                }
+                                if (confirmed != null && toggle != null) {
+                                    // Cancel app and navigation input only after the
+                                    // gesture is confirmed.
                                     pilfer.invoke(inputMonitor)
+                                    // Haptic tick so the activation has a tactile
+                                    // feel even before the workspace visibly opens.
+                                    runCatching {
+                                        vibrator?.vibrate(
+                                            VibrationEffect.createOneShot(
+                                                20L, VibrationEffect.DEFAULT_AMPLITUDE,
+                                            ),
+                                        )
+                                    }
                                     NeXtepLog.info(
                                         "bottom_corner_gesture",
-                                        "Confirmed ${detector.lastConfirmed}",
+                                        "Confirmed $confirmed",
                                     )
                                     val confirmedGeneration = generation
                                     mainHandler.post {
                                         runCatching {
                                             if (generation == confirmedGeneration && canActivate()) {
-                                                SystemUiRuntime.toggleWorkspaceFromBottomCornerGesture()
+                                                toggle()
                                             }
                                         }.onFailure { error ->
                                             NeXtepLog.warn(
@@ -150,6 +190,7 @@ object SystemUiBottomCornerGestureMonitor {
                             }
                         }.getOrElse { error ->
                             detector.reset()
+                            twoFingerDetector.reset()
                             NeXtepLog.warn(
                                 "bottom_corner_gesture",
                                 "Input observation failed open",
@@ -172,7 +213,7 @@ object SystemUiBottomCornerGestureMonitor {
                 .invoke(newReceiver, false)
             monitor = inputMonitor
             receiver = newReceiver
-            resetGesture = { detector.reset() }
+            resetGesture = { detector.reset(); twoFingerDetector.reset() }
             NeXtepLog.info(
                 "bottom_corner_gesture",
                 "Installed default-display corner gesture monitor",

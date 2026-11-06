@@ -60,12 +60,6 @@ internal class ControlAreaPager(context: Context, private val functions: TopAppS
             }
         }
     }
-    private val boundaryDivider = View(context).apply {
-        setBackgroundColor(Color.argb(90, 255, 255, 255))
-        isClickable = false
-        isFocusable = false
-        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
-    }
     private var hasVideoPage = false
     private var embedded = false
     private var selectedPage = 0
@@ -95,8 +89,6 @@ internal class ControlAreaPager(context: Context, private val functions: TopAppS
         // Keep ordinary controls after the SurfaceView hole during transparent-region gathering.
         addView(functions, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         addView(pageIndicator, LayoutParams(dp(30f).toInt(), dp(8f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
-        // The workspace boundary belongs to both pages and must never slide off with either one.
-        addView(boundaryDivider, LayoutParams(LayoutParams.MATCH_PARENT, dp(1f).toInt().coerceAtLeast(1), Gravity.BOTTOM))
         updatePagePositions()
     }
 
@@ -125,7 +117,9 @@ internal class ControlAreaPager(context: Context, private val functions: TopAppS
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         installTouchableStatusBarPassThrough()
-        post { SystemUiStatusBarGestureInstaller.install(this) }
+        // Status-bar trigger gesture removed (2026-11-06): the installer is gone.
+        // The pass-through above stays — it lets the status bar receive touches
+        // (pull down notifications) through the control area.
     }
 
     override fun onDetachedFromWindow() {

@@ -39,7 +39,6 @@ object SystemUiRuntime {
     private lateinit var applicationContext: Context
     private lateinit var windowController: NeXtepWindowController
     private lateinit var workspaceController: WorkspaceController
-    private lateinit var fourFingerGestures: FourFingerGestureController
     private val lifecycleHandler = Handler(Looper.getMainLooper())
     private val configExecutor = Executors.newSingleThreadExecutor { runnable ->
         Thread(runnable, "NeXtep-WorkspaceConfig").apply { isDaemon = true }
@@ -88,25 +87,33 @@ object SystemUiRuntime {
                 if (::windowController.isInitialized) {
                     windowController.setSlotBackgroundSwipeEnabled(workspaceConfig.slotBackgroundSwipeEnabled)
                     windowController.setNavigationButtonsEnabled(workspaceConfig.navigationButtonsEnabled)
+                    windowController.setSlotCornerRadiusPx(TaskSurfaceCompat.slotPaneCornerRadiusPx)
+                    windowController.setMainPaneCornerRadiusPx(TaskSurfaceCompat.mainPaneCornerRadiusPx)
                 }
-                if (::fourFingerGestures.isInitialized) fourFingerGestures.updateConfig(workspaceConfig)
+                // Config may arrive after windows are presented: re-apply the
+                // radii to live presentations instead of waiting for a re-present.
+                TaskSurfaceCompat.refreshCornerRadii()
             }
             NeXtepLog.info(
                 "workspace_config",
-                "Applied statusBarGesture=${workspaceConfig.statusBarGestureEnabled} " +
+                "Applied " +
                     "slotBackgroundSwipe=${workspaceConfig.slotBackgroundSwipeEnabled} " +
                     "autoMinimizeMain=${workspaceConfig.autoMinimizeMainOnTopAppSwitch} " +
                     "navigationButtons=${workspaceConfig.navigationButtonsEnabled} " +
                     "paneRounded=${workspaceConfig.paneRounded} " +
-                    "bottomCornerGesture=${workspaceConfig.bottomCornerGestureEnabled}",
+                    "mainRadiusPx=${TaskSurfaceCompat.mainPaneCornerRadiusPx} " +
+                    "slotRadiusPx=${TaskSurfaceCompat.slotPaneCornerRadiusPx} " +
+                    "bottomCornerGesture=${workspaceConfig.bottomCornerGestureEnabled} " +
+                    "twoFingerSwipe=${workspaceConfig.twoFingerSwipeGestureEnabled}",
             )
         }
     }
 
-    fun isStatusBarGestureEnabled(): Boolean = workspaceConfigReady && workspaceConfig.statusBarGestureEnabled
-
     fun isBottomCornerGestureEnabled(): Boolean =
         workspaceConfigReady && workspaceConfig.bottomCornerGestureEnabled
+
+    fun isTwoFingerSwipeGestureEnabled(): Boolean =
+        workspaceConfigReady && workspaceConfig.twoFingerSwipeGestureEnabled
 
     fun shouldAutoMinimizeMainOnTopAppSwitch(): Boolean = workspaceConfig.autoMinimizeMainOnTopAppSwitch
 
@@ -214,21 +221,12 @@ object SystemUiRuntime {
                 mainTaskPresenter = mainTaskPresenter,
                 onStateChanged = ::updateLockStateObservation,
             )
-            fourFingerGestures = FourFingerGestureController(
-                applicationContext,
-                isWorkspaceActive = ::isWorkspaceActive,
-                visibleSlotTaskIds = windowController::visibleSlotTaskIds,
-                canChangeWorkspace = { !workspaceController.isSuspended() },
-                requestWorkspace = ::setWorkspaceFromFourFingerGesture,
-            )
-
             val filter = IntentFilter().apply {
                 addAction(TriggerBroadcastContract.ACTION_TOGGLE_WORKSPACE)
                 addAction(TriggerBroadcastContract.ACTION_SET_WORKSPACE)
                 addAction(TriggerBroadcastContract.ACTION_QUERY_WORKSPACE)
                 addAction(TriggerBroadcastContract.ACTION_LAUNCH_SLOT_TEST)
                 addAction(TriggerBroadcastContract.ACTION_COMPARE)
-                addAction(TriggerBroadcastContract.ACTION_FOUR_FINGER_WORKSPACE)
             }
             applicationContext.registerReceiver(
                 controlReceiver,
@@ -334,9 +332,9 @@ object SystemUiRuntime {
         }
     }
 
-    fun toggleWorkspaceFromGesture() = toggleWorkspace(isStatusBarGestureEnabled())
-
     fun toggleWorkspaceFromBottomCornerGesture() = toggleWorkspace(isBottomCornerGestureEnabled())
+
+    fun toggleWorkspaceFromTwoFingerSwipeGesture() = toggleWorkspace(isTwoFingerSwipeGestureEnabled())
 
     /** The gate belongs to the gesture that triggered the toggle, not to one shared switch,
      *  so each entry point can be turned off without disabling the others. */
@@ -369,16 +367,6 @@ object SystemUiRuntime {
         }
     }
 
-    private fun setWorkspaceFromFourFingerGesture(active: Boolean) {
-        if (!workspaceConfigReady || !workspaceConfig.fourFingerGestureEnabled ||
-            !::workspaceController.isInitialized || !isScreenReady() || isKeyguardLocked(applicationContext) ||
-            workspaceController.isSuspended() || workspaceController.isActive() == active
-        ) return
-        if (workspaceController.setActive(active)) {
-            publishWorkspaceSurfaceState(active)
-            if (!active) WorkspaceStateBridge.requestInactiveFromSystemUi(applicationContext)
-        }
-    }
 
     private fun publishWorkspaceSurfaceState(active: Boolean) {
         TriggerBroadcastContract.systemUiSetIntent(applicationContext, active)?.let {
@@ -413,6 +401,7 @@ object SystemUiRuntime {
     private fun runCompare(
         mode: io.github.jheyzo.panedeck.compare.CompareIntents.Mode,
         query: String,
+        selectedNames: Set<String>? = null,
     ): Boolean {
         if (query.isBlank()) return false
         val active = workspaceController.isActive() || workspaceController.setActive(true)
@@ -426,14 +415,16 @@ object SystemUiRuntime {
                     target, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY,
                 ) != null
             },
-        ).run(mode, query)
+        ).run(mode, query, selectedNames)
     }
 
     /** In-workspace compare dialog, opened from the top bar. */
     private fun showCompareDialog() {
         if (!::workspaceController.isInitialized) return
         CompareDialog(applicationContext,
-            onSearch = { mode, query -> runCompare(mode, query) },
+            // Panes searches every installed target (no per-app
+            // selection since v17), so selectedNames stays null.
+            onSearch = { mode, query -> runCompare(mode, query, null) },
         ).show()
     }
 
@@ -553,7 +544,6 @@ object SystemUiRuntime {
             }
         }
         TriggerBroadcastContract.ACTION_QUERY_WORKSPACE -> true
-        TriggerBroadcastContract.ACTION_FOUR_FINGER_WORKSPACE -> fourFingerGestures.handleRequest(intent)
         TriggerBroadcastContract.ACTION_LAUNCH_SLOT_TEST -> {
             val active = workspaceController.isActive() || workspaceController.setActive(true)
             active && workspaceController.launchInSlot(

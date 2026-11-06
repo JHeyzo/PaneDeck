@@ -59,18 +59,14 @@ object SystemUiRootTransformController {
 
     fun setActive(requestedActive: Boolean, fitExistingShade: Boolean = true) {
         active = requestedActive
-        if (active) {
-            // A top-corner workspace gesture can be confirmed while the shade is already open.
-            // In that path the root was observed by the same touch dispatch, but there is no
-            // subsequent downward shade gesture to start its transform. Apply all live observed
-            // shade roots as part of activation so an already-rendered control centre moves into
-            // the content viewport immediately.
-            if (fitExistingShade) beginObservedShadeTransform()
-        } else {
+        if (!active) {
             shadeMonitors.keys.toList().forEach(::stopMonitoring)
             roots.keys.toList().forEach(::restore)
             transformedRoots.clear()
         }
+        // Note: an already-open shade is deliberately NOT fitted into
+        // the main window (see beginShadeTransform): the shade stays
+        // full-screen, so fitExistingShade is accepted but ignored.
         NeXtepLog.info("systemui_root_transform", "active=$active roots=${roots.size}")
     }
 
@@ -105,27 +101,23 @@ object SystemUiRootTransformController {
         location[1] = ((location[1] - transform.translationY) / transform.scaleY).roundToInt()
     }
 
+    /**
+     * The notification shade is NOT transformed into the main window.
+     * Upstream shrank the shade to the workspace's main pane (so it
+     * would not cover the slots and top bar), but the user expects the
+     * normal full-screen shade when pulling down the status bar. The
+     * shade root is still observed (for touch mapping), but no scale /
+     * translation / clip is ever applied, so it renders full-screen
+     * like it does outside the workspace. Touch mapping then stays in
+     * screen coordinates (mapToContent returns null: nothing transformed).
+     */
     fun beginShadeTransform(view: View): Boolean {
         observeRoot(view)
-        if (!active || !roots.containsKey(view)) return false
-        apply(view)
-        transformedRoots[view] = true
-        monitorUntilCollapsed(view)
-        return true
+        return false
     }
 
     fun beginObservedShadeTransform(): Boolean {
-        if (!active) return false
-        var transformed = false
-        roots.keys.toList().forEach { view ->
-            if (view.parent != null && isNotificationShadeRoot(view)) {
-                apply(view)
-                transformedRoots[view] = true
-                monitorUntilCollapsed(view)
-                transformed = true
-            }
-        }
-        return transformed
+        return false
     }
 
     fun isNotificationShadeRoot(view: View): Boolean = isFullScreenRoot(view) &&

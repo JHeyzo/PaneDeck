@@ -13,15 +13,15 @@ class BottomCornerGestureDetector(
 ) {
     enum class Result { IGNORED, OBSERVING, ABANDONED, CONFIRMED }
 
-    // A thumb swipe from the corner is short and rarely a clean 45 degrees: accept 24dp on each
-    // axis within a 64dp corner, between about 20 and 62 degrees from horizontal. Flatter swipes
-    // conflict with nothing the system owns at the corner, so that side is wide (2.75:1); a 96dp
+    // A thumb swipe from the corner is short and rarely a clean 45 degrees: accept 20dp on each
+    // axis within a 96dp corner, between about 16 and 62 degrees from horizontal. Flatter swipes
+    // conflict with nothing the system owns at the corner, so that side is wide (3.5:1); a 96dp
     // corner with 2.5:1 on the steep side took a home swipe leaning 25 degrees off vertical, so
     // that side stops at 1.88:1.
-    private val startSize = 64f * density
-    private val maximumFlatSlope = 2.75f
+    private val startSize = 96f * density
+    private val maximumFlatSlope = 3.5f
     private val maximumSteepSlope = 1.88f
-    private val minimumDistance = 24f * density
+    private val minimumDistance = 20f * density
     private val directionSlop = 12f * density
     private var observing = false
     private var fromLeft = false
@@ -77,7 +77,7 @@ class BottomCornerGestureDetector(
         }
         if (!observing) return Result.IGNORED
         if (screenWidth != downWidth || screenHeight != downHeight || rotation != downRotation ||
-            eventTime - downTime !in 0L..1_200L
+            eventTime - downTime !in 0L..2_000L
         ) return finish(Result.ABANDONED)
 
         if (action == ACTION_MOVE || action == ACTION_UP) {

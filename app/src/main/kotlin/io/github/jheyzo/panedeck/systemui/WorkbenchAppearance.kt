@@ -1,0 +1,104 @@
+package io.github.jheyzo.panedeck.systemui
+
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+
+/**
+ * Shared panel colours and the main-pane corner frame.
+ *
+ * Ported from Panes Workbench 3.0.5 (yishisanren, Apache License 2.0):
+ * `WorkbenchAppearance` / `WorkbenchFrameDrawable`. Only the parts the
+ * main-pane frame needs are carried over (the slot/badge helpers are not).
+ * Upstream NeXtep 2.1.0 does not have this: it rounds the task leash and
+ * paints a backdrop behind the pane, which never reads as rounded corners
+ * for the transparent home task. Panes rounds only its own visual frame:
+ * a mask drawn ON TOP of the task that covers the square corners with the
+ * panels' frosted backdrop, and never touches the leash's native corners.
+ */
+internal enum class WorkbenchAppearance(
+    val panel: Int, val panelEnd: Int, val card: Int,
+    val text: Int, val secondary: Int, val outline: Int,
+) {
+    // The panel tone is a translucent layer over the blurred desktop wallpaper; dark text
+    // stays readable over a dark wallpaper at less coverage than white text over a light one.
+    DARK(0x660C131F.toInt(), 0x66172230.toInt(), 0xFF222E3D.toInt(),
+        Color.WHITE, 0xFFAFBAC9.toInt(), 0xFF3A485A.toInt()),
+    LIGHT(0x4DEDF1F7.toInt(), 0x4DDDE5F0.toInt(), 0xFFF9FBFE.toInt(),
+        0xFF182333.toInt(), 0xFF526176.toInt(), 0xFFC2CCDB.toInt());
+
+    val accent: Int get() = if (this == DARK) 0xFF8CCBEA.toInt() else 0xFF245D80.toInt()
+    /** Opaque panel tone for sheets, and for covers until the wallpaper has been captured. */
+    val opaquePanel: Int get() = panelEnd or 0xFF000000.toInt()
+    /** Dialog background: the opaque panel tone at 80% opacity, so the
+     *  wallpaper shows faintly through and the dialog reads as part of
+     *  the frosted workbench instead of a solid card (user 2026-11-06:
+     *  "要点透明度好看点"). Text stays readable; only a hint of the
+     *  background comes through. */
+    val dialogPanel: Int get() = (opaquePanel and 0x00FFFFFF) or 0xCC000000.toInt()
+    /** A slot's card: a faint card tone, so an empty slot shows the frosted panel through it. */
+    val slotCard: Int get() = (card and 0x00FFFFFF) or 0x40000000
+
+    // Each panel meets the same wallpaper; restarting a gradient exposes rectangular backplates.
+    fun background(radius: Float = 0f, stroke: Int = 0) = GradientDrawable().apply {
+        setColor(panelEnd)
+        cornerRadius = radius
+        if (stroke > 0) setStroke(stroke, outline)
+    }
+
+    companion object {
+        /** No appearance preference: follow the device's night mode, as Panes does by default. */
+        fun resolve(context: android.content.Context): WorkbenchAppearance {
+            val config = context.resources.configuration
+            return if (config.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+                android.content.res.Configuration.UI_MODE_NIGHT_YES) DARK else LIGHT
+        }
+    }
+}
+
+/** Round only our visual frame; never overwrite a task leash's native corner state.
+ * The corners show [maskFill] (the panels' frosted backdrop) when given, else [maskColor]. */
+internal class WorkbenchFrameDrawable(
+    private val maskColor: Int, private val borderColor: Int,
+    private val radius: Float, private val stroke: Float,
+    private val maskFill: android.graphics.drawable.Drawable? = null,
+) : android.graphics.drawable.Drawable() {
+    private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    private val mask = android.graphics.Path().apply { fillType = android.graphics.Path.FillType.EVEN_ODD }
+    private val frame = android.graphics.RectF()
+    private var drawableAlpha = 255
+
+    override fun onBoundsChange(bounds: android.graphics.Rect) {
+        frame.set(bounds)
+        mask.reset()
+        mask.fillType = android.graphics.Path.FillType.EVEN_ODD
+        mask.addRect(frame, android.graphics.Path.Direction.CW)
+        mask.addRoundRect(frame, radius, radius, android.graphics.Path.Direction.CW)
+        frame.inset(stroke / 2, stroke / 2)
+    }
+
+    override fun draw(canvas: android.graphics.Canvas) {
+        if (maskFill != null) {
+            val save = canvas.save()
+            canvas.clipPath(mask)
+            maskFill.bounds = bounds
+            maskFill.alpha = drawableAlpha
+            maskFill.draw(canvas)
+            canvas.restoreToCount(save)
+        } else {
+            paint.style = android.graphics.Paint.Style.FILL
+            paint.color = maskColor
+            paint.alpha = (android.graphics.Color.alpha(maskColor) * drawableAlpha / 255)
+            canvas.drawPath(mask, paint)
+        }
+        paint.color = borderColor
+        paint.alpha = (android.graphics.Color.alpha(borderColor) * drawableAlpha / 255)
+        paint.style = android.graphics.Paint.Style.STROKE
+        paint.strokeWidth = stroke
+        canvas.drawRoundRect(frame, radius, radius, paint)
+    }
+
+    override fun setAlpha(alpha: Int) { drawableAlpha = alpha; invalidateSelf() }
+    override fun setColorFilter(filter: android.graphics.ColorFilter?) { paint.colorFilter = filter; invalidateSelf() }
+    @Deprecated("Deprecated in Android")
+    override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
+}
