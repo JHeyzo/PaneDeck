@@ -24,8 +24,6 @@
     <string name="tile_add_manually">Add PaneDeck from the Quick Settings editor.</string>
     <string name="tile_entry_title">Quick Settings shortcut</string>
     <string name="tile_entry_summary">Add the PaneDeck tile</string>
-    <string name="gesture_title">Status bar gesture</string>
-    <string name="gesture_summary">Swipe left from the right side to open or close the workspace.</string>
     <string name="background_swipe_title">Swipe small windows to background</string>
     <string name="background_swipe_summary">Swipe left on left-side windows, or right on right-side windows.</string>
     <string name="window_animation_duration_title">Window animation duration</string>
@@ -44,6 +42,8 @@
     <string name="compare_search">Search</string>
     <string name="compare_sent">Compare request sent to the workspace.</string>
     <string name="compare_empty">Type a product name first.</string>
+    <string name="compare_missing">No app available for this mode.</string>
+    <string name="compare_launch_failed">launch failed</string>
     <string name="pane_rounded_summary">On: small rounded corners. Off: square corners.</string>
     <string name="frost_title">Frosted glass</string>
     <string name="frost_summary">Adjust the frost strength of the controls and small-window backgrounds.</string>
@@ -102,9 +102,9 @@
     <string name="font_system_hant">System sans · Traditional Chinese</string>
     <string name="app_icon_description">PaneDeck icon</string>
     <string name="about_tagline">One step, then another.</string>
-    <string name="about_tribute">A tribute to OneStep, bringing side-by-side multitasking to the native ColorOS launcher.</string>
+    <string name="about_tribute">PaneDeck is a modified version based on NeXtep: it keeps OneStep-style side multitasking on the native ColorOS launcher and adds one-tap price comparison.</string>
     <string name="about_windows_title">One main window, three small windows</string>
-    <string name="about_features">Use apps side by side, drag to swap windows, and add apps from recent-task cards. Drag a small window to the top controls to send it to the background. The top area also offers media controls, frequently used apps, and custom text.</string>
+    <string name="about_features">Use apps side by side, drag to swap windows, and add apps from recent-task cards. Drag a small window to the top controls to send it to the background. The top area also offers media controls, frequently used apps, custom text, and one-tap price comparison.</string>
     <string name="about_compatibility">This project integrates with the system UI through LSPosed and keeps your phone’s original launcher. Some features may need adjustments after system updates.</string>
     <string name="about_credits">License · Apache License 2.0\nAuthor · JHeyzo\nBased on NeXtep by lujinxin (Jensen Lu)</string>
     <string name="acknowledgements_title">Acknowledgements</string>
@@ -160,13 +160,7 @@
     <string name="apps_none_available">No apps available to launch</string>
     <string name="launcher_icon_title">App icon</string>
     <string name="launcher_icon_summary">Follow the seasons or choose an icon. Dark theme or Battery Saver temporarily uses the night icon.</string>
-    <string name="launcher_icon_automatic">Follow the seasons</string>
-    <string name="launcher_icon_automatic_current">Auto · %1$s</string>
     <string name="launcher_icon_default">Default</string>
-    <string name="launcher_icon_spring">Spring</string>
-    <string name="launcher_icon_summer">Summer</string>
-    <string name="launcher_icon_autumn">Autumn</string>
-    <string name="launcher_icon_winter">Winter</string>
     <string name="launcher_icon_night">Night</string>
     <string name="launcher_icon_change_failed">Unable to change the icon right now. Please try again.</string>
     <string name="control_video_title">Video</string>
