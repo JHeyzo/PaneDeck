@@ -1,0 +1,17 @@
+<!-- PaneDeck status-bar / QS tile: NeXtep original glyph, every corner rounded.
+     Same 24dp viewport, same white 1.05 stroke, transparent fill.
+     r=2 on the top bar and big pane, r=1.75 (max) on the three small pills:
+     r=1 was in v3/v4 and invisible at tile size. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.05"
+        android:strokeLineCap="square"
+        android:strokeLineJoin="miter"
+        android:pathData="M4.5,1 H19.5 Q21.5,1 21.5,3 V5.2 Q21.5,7.2 19.5,7.2 H4.5 Q2.5,7.2 2.5,5.2 V3 Q2.5,1 4.5,1 Z M4.5,8.7 H12.5 Q14.5,8.7 14.5,10.7 V21 Q14.5,23 12.5,23 H4.5 Q2.5,23 2.5,21 V10.7 Q2.5,8.7 4.5,8.7 Z M17.75,8.7 H19.75 Q21.5,8.7 21.5,10.45 V10.45 Q21.5,12.2 19.75,12.2 H17.75 Q16,12.2 16,10.45 V10.45 Q16,8.7 17.75,8.7 Z M17.75,14.1 H19.75 Q21.5,14.1 21.5,15.85 V15.85 Q21.5,17.6 19.75,17.6 H17.75 Q16,17.6 16,15.85 V15.85 Q16,14.1 17.75,14.1 Z M17.75,19.5 H19.75 Q21.5,19.5 21.5,21.25 V21.25 Q21.5,23 19.75,23 H17.75 Q16,23 16,21.25 V21.25 Q16,19.5 17.75,19.5 Z" />
+</vector>
