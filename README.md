@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/nextep-logo.png" alt="PaneDeck icon" width="220">
+  <img src="assets/panedeck-logo.png" alt="PaneDeck icon" width="220">
 </p>
 
 <h2 align="center">PaneDeck — ColorOS side workspace with one-tap price compare</h2>
