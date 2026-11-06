@@ -5,6 +5,9 @@ import io.github.jheyzo.panedeck.logging.NeXtepLog
 import java.lang.reflect.Method
 
 object ActivityTaskManagerCompat {
+    /** ActivityInfo resize mode that lets a task's window actually follow new bounds. */
+    const val TASK_RESIZE_MODE_RESIZEABLE = 2
+
     private val service: Any? by lazy {
         runCatching {
             val type = Class.forName("android.app.ActivityTaskManager")

@@ -51,6 +51,10 @@ object TaskSurfaceCompat {
         val fullBounds: Rect? = null,
         val restoring: Boolean = false,
         val geometry: WorkspaceGeometry,
+        // Bounds-laid-out main task: the app is sized to the pane by WM, so the
+        // leash stays identity (scale 1, position 0, no crop) and input lands
+        // where the app is drawn. See presentAtBounds.
+        val boundsMode: Boolean = false,
         @Volatile var frame: SurfaceFrame = SurfaceFrame(scaleX, scaleY, positionX, positionY, crop),
     )
 
@@ -74,6 +78,10 @@ object TaskSurfaceCompat {
     var mainPaneCornerRadiusPx: Float = 0f
     @Volatile
     var slotPaneCornerRadiusPx: Float = 0f
+    // One-time log when setCornerRadius is missing on the host transaction,
+    // so a silently square pane is diagnosable instead of invisible.
+    @Volatile
+    private var cornerRadiusUnsupportedLogged = false
     @Volatile
     private var activityManager: ActivityManager? = null
     private val activePresentations = ConcurrentHashMap<Int, ActivePresentation>()
@@ -168,6 +176,52 @@ object TaskSurfaceCompat {
             }
         }
     }.onFailure { NeXtepLog.warn("slot_surface", "Unable to restore slot coordinates taskId=$taskId", it) }
+
+    /**
+     * Re-apply the current pane radii to every live presentation and slot.
+     * The config can arrive after the workspace is already presented (or be
+     * toggled later); without this, a late paneRounded=true would leave
+     * already-presented windows square until they are re-presented.
+     */
+    fun refreshCornerRadii() {
+        if (mainPaneCornerRadiusPx <= 0f && slotPaneCornerRadiusPx <= 0f) return
+        val loader = hostClassLoader ?: return
+        val transaction = runCatching {
+            loader.loadClass("android.view.SurfaceControl\$Transaction")
+                .getDeclaredConstructor().newInstance()
+        }.getOrNull() ?: return
+        transactionGuard.ownedTransaction {
+            try {
+                activePresentations.values.forEach { presentation ->
+                    if (ownedTaskLeash(presentation.taskId) !== presentation.leash ||
+                        !isValid(presentation.leash)
+                    ) return@forEach
+                    val frame = SurfaceFrame(
+                        presentation.scaleX, presentation.scaleY,
+                        presentation.positionX, presentation.positionY,
+                        presentation.crop, mainPaneCornerRadiusPx,
+                    )
+                    presentation.frame = frame
+                    writeFrame(transaction, presentation.leash, frame)
+                }
+                slotSurfaces.forEach { (taskId, slot) ->
+                    val state = observedStates[taskId] ?: return@forEach
+                    if (state.displayId != slot.displayId || state.vendorWindowed ||
+                        state.windowingMode != WINDOWING_MODE_FULLSCREEN ||
+                        observedLeashes[taskId] !== slot.leash || !isValid(slot.leash) ||
+                        isDisplayExchanging(taskId)
+                    ) return@forEach
+                    writeFrame(
+                        transaction, slot.leash,
+                        SurfaceFrame(1f, 1f, 0f, 0f, slot.crop, slotPaneCornerRadiusPx),
+                    )
+                }
+                invokeRequired(transaction, "apply")
+            } finally {
+                invokeOptional(transaction, "close")
+            }
+        }
+    }
 
     /** Reserve fitting before a display move, without touching the small-window surface. */
     fun preparePromotion(taskId: Int, geometry: WorkspaceGeometry): Result<Unit> = runCatching {
@@ -289,7 +343,10 @@ object TaskSurfaceCompat {
             reapply(taskId, geometry).getOrThrow()
             return@runCatching
         }
-        val leash = findTaskLeash(taskId)
+        // HOME (e.g. Niagara) is only reported as its root in
+        // ShellTaskOrganizer; without the home-root fallback the desktop
+        // main task has no leash and enter() fails after the gesture confirms.
+        val leash = findTaskLeash(taskId, allowHomeRoot = true)
             ?: error("WM Shell task leash unavailable for taskId=$taskId")
         check(isValid(leash)) { "WM Shell task leash is invalid for taskId=$taskId" }
 
@@ -346,19 +403,67 @@ object TaskSurfaceCompat {
         NeXtepLog.error("task_surface", "Presentation failed taskId=$taskId", error)
     }
 
+    /** Present a task whose bounds WM already set to the pane rect: the leash
+     * stays identity, so the app lays out at pane size and input lands where
+     * the app is drawn (no leash scale to offset taps/IME). No entry zoom:
+     * the bounds change itself is the transition. */
+    fun presentAtBounds(taskId: Int, geometry: WorkspaceGeometry): Result<Unit> = runCatching {
+        require(taskId > 0) { "Invalid taskId=$taskId" }
+        val previous = activePresentations[taskId]
+        if (previous != null && !previous.restoring && previous.boundsMode) {
+            return@runCatching
+        }
+        val leash = findTaskLeash(taskId)
+            ?: error("WM Shell task leash unavailable for taskId=$taskId")
+        check(isValid(leash)) { "WM Shell task leash is invalid for taskId=$taskId" }
+        val now = SystemClock.uptimeMillis()
+        val paneRect = Rect(geometry.contentLeft, geometry.contentTop,
+            geometry.contentRight, geometry.contentBottom)
+        val presentation = ActivePresentation(
+            taskId = taskId,
+            leash = leash,
+            scaleX = 1f,
+            scaleY = 1f,
+            positionX = 0f,
+            positionY = 0f,
+            reapplyUntil = now + REAPPLY_WINDOW_MS,
+            lastAppliedAt = now,
+            crop = null,
+            fullBounds = paneRect,
+            geometry = geometry,
+            boundsMode = true,
+        )
+        activePresentations[taskId] = presentation
+        preparedPresentations.remove(taskId)
+        cancelPresentationAnimation(taskId)
+        applyPresentation(presentation)
+        NeXtepLog.info(
+            "task_surface",
+            "Presented taskId=$taskId at bounds $paneRect (identity leash)",
+        )
+    }.onFailure { error ->
+        NeXtepLog.error("task_surface", "Bounds presentation failed taskId=$taskId", error)
+    }
+
     fun reapply(taskId: Int, geometry: WorkspaceGeometry): Result<Unit> = runCatching {
         val previous = activePresentations[taskId]
             ?: error("No active surface presentation for taskId=$taskId")
         val now = SystemClock.uptimeMillis()
         if (rotationHandoff.holds(taskId, now)) return@runCatching
-        val scaleX = geometry.contentScale
+        // Bounds-laid-out tasks keep the identity leash whatever the geometry
+        // says; only the bounds (owned by the coordinator) move. A leash
+        // scale here would shrink the already pane-sized app a second time.
+        val boundsMode = previous.boundsMode
+        val scaleX = if (boundsMode) 1f else geometry.contentScale
         val scaleY = scaleX
-        val crop = sourceCrop(geometry)
+        val targetX = if (boundsMode) 0f else geometry.contentTranslationX
+        val targetY = if (boundsMode) 0f else geometry.contentTranslationY
+        val crop = if (boundsMode) null else sourceCrop(geometry)
         val rotationChanged = previous.geometry.displayRotation != geometry.displayRotation
         val geometryChanged = rotationChanged || previous.scaleX != scaleX ||
             previous.scaleY != scaleY ||
-            previous.positionX != geometry.contentTranslationX ||
-            previous.positionY != geometry.contentTranslationY || previous.crop != crop
+            previous.positionX != targetX ||
+            previous.positionY != targetY || previous.crop != crop
         if (!geometryChanged && now - previous.lastAppliedAt < MIN_REAPPLY_INTERVAL_MS) {
             return@runCatching
         }
@@ -367,7 +472,9 @@ object TaskSurfaceCompat {
         ) {
             return@runCatching
         }
-        val currentLeash = findTaskLeash(taskId)
+        // Same HOME-root fallback as present(): a HOME main task must keep
+        // its leash across reapplies, or the workspace drops off the desktop.
+        val currentLeash = findTaskLeash(taskId, allowHomeRoot = true)
             ?: error("WM Shell task leash unavailable for taskId=$taskId")
         check(isValid(currentLeash)) {
             "WM Shell task leash is invalid for taskId=$taskId"
@@ -379,13 +486,16 @@ object TaskSurfaceCompat {
                 leash = currentLeash,
                 scaleX = scaleX,
                 scaleY = scaleY,
-                positionX = geometry.contentTranslationX,
-                positionY = geometry.contentTranslationY,
+                positionX = targetX,
+                positionY = targetY,
                 reapplyUntil = now + REAPPLY_WINDOW_MS,
                 lastAppliedAt = 0L,
                 crop = crop,
-                fullBounds = Rect(0, 0, geometry.screenWidth, geometry.screenHeight),
+                fullBounds = if (boundsMode) Rect(geometry.contentLeft, geometry.contentTop,
+                    geometry.contentRight, geometry.contentBottom)
+                else Rect(0, 0, geometry.screenWidth, geometry.screenHeight),
                 geometry = geometry,
+                boundsMode = boundsMode,
             ).also { activePresentations[taskId] = it }
         } else {
             previous
@@ -448,15 +558,23 @@ object TaskSurfaceCompat {
             retained = true
             if (previous.geometry.displayRotation == rotation) return@forEach
             val geometry = previous.geometry.rotatedTo(rotation)
-            val crop = sourceCrop(geometry)
+            // Bounds-laid-out tasks keep the identity leash across rotation;
+            // only their bounds (owned by the coordinator) move.
+            val boundsMode = previous.boundsMode
+            val rotScale = if (boundsMode) 1f else geometry.contentScale
+            val rotX = if (boundsMode) 0f else geometry.contentTranslationX
+            val rotY = if (boundsMode) 0f else geometry.contentTranslationY
+            val crop = if (boundsMode) null else sourceCrop(geometry)
+            val rotBounds = if (boundsMode) Rect(geometry.contentLeft, geometry.contentTop,
+                geometry.contentRight, geometry.contentBottom)
+            else Rect(0, 0, geometry.screenWidth, geometry.screenHeight)
             val next = previous.copy(
-                scaleX = geometry.contentScale, scaleY = geometry.contentScale,
-                positionX = geometry.contentTranslationX, positionY = geometry.contentTranslationY,
-                crop = crop, fullBounds = Rect(0, 0, geometry.screenWidth, geometry.screenHeight),
+                scaleX = rotScale, scaleY = rotScale,
+                positionX = rotX, positionY = rotY,
+                crop = crop, fullBounds = rotBounds,
                 geometry = geometry, lastAppliedAt = 0L,
                 reapplyUntil = SystemClock.uptimeMillis() + REAPPLY_WINDOW_MS,
-                frame = SurfaceFrame(geometry.contentScale, geometry.contentScale,
-                    geometry.contentTranslationX, geometry.contentTranslationY, crop),
+                frame = SurfaceFrame(rotScale, rotScale, rotX, rotY, crop),
             )
             if (activePresentations.replace(taskId, previous, next)) {
                 // This hook runs on Shell's looper; cancel only this old animator
@@ -706,7 +824,12 @@ object TaskSurfaceCompat {
         // (covers ActivePresentation frames, which still carry 0).
         val radius = if (frame.cornerRadiusPx > 0f) frame.cornerRadiusPx else paneCornerRadiusPx
         if (radius > 0f) {
-            invokeOptional(transaction, "setCornerRadius", leash, radius)
+            if (!invokeOptional(transaction, "setCornerRadius", leash, radius) &&
+                !cornerRadiusUnsupportedLogged
+            ) {
+                cornerRadiusUnsupportedLogged = true
+                NeXtepLog.warn("task_surface", "setCornerRadius unavailable on host, radius=$radius")
+            }
         }
         // Keep native visibility, fade, layer order and parenting intact.
         if (!invokeOptional(transaction, "setMatrix", leash, frame.scaleX, 0f, 0f, frame.scaleY)) {
