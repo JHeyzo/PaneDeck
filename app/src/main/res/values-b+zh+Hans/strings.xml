@@ -16,8 +16,6 @@
     <string name="tile_add_manually">请在控制中心编辑页面添加 PaneDeck</string>
     <string name="tile_entry_title">控制中心入口</string>
     <string name="tile_entry_summary">添加 PaneDeck 快捷开关</string>
-    <string name="gesture_title">状态栏触发手势</string>
-    <string name="gesture_summary">从右侧向左滑动，打开或关闭工作区。</string>
     <string name="background_swipe_title">小窗 App 横滑退到后台</string>
     <string name="background_swipe_summary">左侧小窗向左滑，右侧小窗向右滑。</string>
     <string name="window_animation_duration_title">窗口切换动画时长</string>
@@ -36,6 +34,8 @@
     <string name="compare_search">搜索</string>
     <string name="compare_sent">已把比价请求发给工作区。</string>
     <string name="compare_empty">先输入商品名。</string>
+    <string name="compare_missing">这个模式没有可用的应用。</string>
+    <string name="compare_launch_failed">启动失败</string>
     <string name="pane_rounded_summary">开启：小圆角。关闭：直角。</string>
     <string name="frost_title">磨砂玻璃</string>
     <string name="frost_summary">调整控制区域和小窗背景的磨砂强度。</string>
@@ -94,9 +94,9 @@
     <string name="font_system_hant">系统黑体 · 繁体中文</string>
     <string name="app_icon_description">PaneDeck 图标</string>
     <string name="about_tagline">一步，再进一步。</string>
-    <string name="about_tribute">向 OneStep 致敬，在原生 ColorOS 桌面上延续侧边多任务的体验。</string>
+    <string name="about_tribute">PaneDeck 是基于 NeXtep 的修改版：在原生 ColorOS 桌面上延续 OneStep 的侧边多任务，并加入一键比价。</string>
     <string name="about_windows_title">一个主窗口，三个小窗</string>
-    <string name="about_features">并排处理不同应用，拖动交换窗口，从后台卡片连续添加应用。把小窗拖到顶部控制区，即可移回后台。顶部还提供媒体控制、常用应用和自定义文字等功能。</string>
+    <string name="about_features">并排处理不同应用，拖动交换窗口，从后台卡片连续添加应用。把小窗拖到顶部控制区，即可移回后台。顶部还提供媒体控制、常用应用、自定义文字和一键比价等功能。</string>
     <string name="about_compatibility">本项目通过 LSPosed 接入系统界面，保留手机原有桌面。系统升级后，部分功能可能需要适配。</string>
     <string name="about_credits">开源协议 · Apache License 2.0\n作者 · JHeyzo\n基于 lujinxin (Jensen Lu) 的 NeXtep</string>
     <string name="acknowledgements_title">致谢</string>
@@ -152,13 +152,7 @@
     <string name="apps_none_available">没有可启动的 App</string>
     <string name="launcher_icon_title">桌面图标</string>
     <string name="launcher_icon_summary">按季节或手动选择显示；系统暗黑或省电模式下临时使用暗黑图标。</string>
-    <string name="launcher_icon_automatic">自动随季节</string>
-    <string name="launcher_icon_automatic_current">自动 · %1$s</string>
     <string name="launcher_icon_default">默认</string>
-    <string name="launcher_icon_spring">春</string>
-    <string name="launcher_icon_summer">夏</string>
-    <string name="launcher_icon_autumn">秋</string>
-    <string name="launcher_icon_winter">冬</string>
     <string name="launcher_icon_night">暗黑</string>
     <string name="launcher_icon_change_failed">暂时无法更换图标，请重试。</string>
     <string name="control_video_title">视频</string>
