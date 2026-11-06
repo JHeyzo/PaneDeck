@@ -96,7 +96,7 @@
     <string name="about_tagline">一步，再进一步。</string>
     <string name="about_tribute">PaneDeck 是基于 NeXtep 的修改版：在原生 ColorOS 桌面上延续 OneStep 的侧边多任务，并加入一键比价。</string>
     <string name="about_windows_title">一个主窗口，三个小窗</string>
-    <string name="about_features">并排处理不同应用，拖动交换窗口，从后台卡片连续添加应用。把小窗拖到顶部控制区，即可移回后台。顶部还提供媒体控制、常用应用、自定义文字和一键比价等功能。</string>
+    <string name="about_features">并排用多个应用，拖动换窗，从后台卡片加应用。顶部有媒体控制、常用应用、自定义文字和一键比价。</string>
     <string name="about_compatibility">本项目通过 LSPosed 接入系统界面，保留手机原有桌面。系统升级后，部分功能可能需要适配。</string>
     <string name="about_credits">开源协议 · Apache License 2.0\n作者 · JHeyzo\n基于 lujinxin (Jensen Lu) 的 NeXtep</string>
     <string name="acknowledgements_title">致谢</string>
