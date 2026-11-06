@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="assets/nextep-logo.png" alt="NeXtep icon" width="220">
+  <img src="assets/nextep-logo.png" alt="PaneDeck icon" width="220">
 </p>
 
-<h2 align="center">PaneDeck — ColorOS side workspace with price compare</h2>
+<h2 align="center">PaneDeck — ColorOS side workspace with one-tap price compare</h2>
 
-<p align="center">Based on <a href="https://github.com/lujinxin/NeXtep">NeXtep by lujinxin</a> (Apache-2.0), with price compare, per-gesture switches and ColorOS 17 fixes.</p>
+<p align="center">A modified version based on <a href="https://github.com/lujinxin/NeXtep">NeXtep by lujinxin (Jensen Lu)</a>, licensed under Apache-2.0. PaneDeck keeps NeXtep's OneStep-style side multitasking on the native ColorOS launcher and adds one-tap price comparison.</p>
 
 <p align="center">
   <a href="README.md">English</a> / <a href="README_CN.md">中文</a>
@@ -13,32 +13,21 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Android-16%2B-3DDC84?style=flat&logo=android&logoColor=white" alt="Android 16+">
   <img src="https://img.shields.io/github/v/release/JHeyzo/PaneDeck?display_name=tag&sort=semver" alt="Latest release">
-  <img src="https://img.shields.io/badge/status-stable-2EA44F?style=flat" alt="Status: stable">
   <img src="https://img.shields.io/badge/Root-Required-C62828?style=flat" alt="Root required">
   <img src="https://img.shields.io/badge/license-Apache--2.0-4C1?style=flat" alt="Apache License 2.0">
   <img src="https://img.shields.io/badge/LSPosed-Module-3F51B5?style=flat" alt="LSPosed module">
   <img src="https://img.shields.io/badge/Kotlin-Source-7F52FF?style=flat&logo=kotlin&logoColor=white" alt="Kotlin source">
 </p>
 
-<p align="center">
-  <img src="assets/screenshots/workspace-overview.jpg" alt="NeXtep workspace overview" width="17%">&nbsp;
-  <img src="assets/screenshots/quick-settings.jpg" alt="NeXtep Quick Settings workspace" width="17%">&nbsp;
-  <img src="assets/screenshots/widgets-workspace.jpg" alt="NeXtep widgets workspace" width="17%">&nbsp;
-  <img src="assets/screenshots/app-settings.jpg" alt="NeXtep app settings" width="17%">&nbsp;
-  <img src="assets/screenshots/multitasking.jpg" alt="NeXtep multitasking workspace" width="17%">
-</p>
+# PaneDeck
 
-# NeXtep
+**PaneDeck** is an **LSPosed module** that adds a **native side workspace** to ColorOS 16 / 17 while keeping the **stock launcher**. It provides **one main window and three live task slots**, with task switching, drag-and-drop, media controls, and customizable app shortcuts integrated into SystemUI — plus **one-tap price comparison**: type a keyword once and search it across several shopping or food-delivery apps at the same time, each result in its own window.
 
-**NeXtep** is an **LSPosed module** that adds a **native side workspace** to ColorOS 16 / 17 while keeping the **stock launcher**. It provides **one main window and three live task slots**, with task switching, drag-and-drop, media controls, and customizable app shortcuts integrated into SystemUI.
+PaneDeck is built on **NeXtep 2.1.0 by lujinxin** (Apache License 2.0). The upstream project, its architecture, and most of the workspace implementation are lujinxin's work; PaneDeck's changes are listed in [What PaneDeck changes](#what-panedeck-changes). The project primarily targets **OnePlus PLK110**, verified on **Android 16 / ColorOS 16** and **Android 17 / ColorOS 17**. It relies on private Android and ColorOS behavior, so **other devices, ROM versions, and vendor launchers require adaptation**.
 
-The project primarily targets **OnePlus PLK110**, previously verified on **Android 16 / ColorOS 16**. Recent feature and compatibility testing is based on **Android 17 / ColorOS 17**. It relies on private Android and ColorOS behavior, so **other devices, ROM versions, and vendor launchers require adaptation**.
+**Current version: 1.0.0.** Published APKs are available from [GitHub Releases](https://github.com/JHeyzo/PaneDeck/releases).
 
-**Stable channel: 2.1.0.** Development builds are maintained on [beta](https://github.com/lujinxin/NeXtep/tree/beta); published APKs are available from GitHub Releases.
-
-[Download and release notes](https://github.com/lujinxin/NeXtep/releases) · [Demo video on Bilibili](https://www.bilibili.com/video/BV1iKHj6fEtL)
-
-[Features](#features) · [Energy monitoring](#energy-monitoring-and-resource-use) · [Requirements](#requirements) · [Installation](#installation) · [Workspace controls](#open-and-close-the-workspace) · [External commands](#external-commands) · [Behavior switches](#behavior-switches)
+[Features](#features) · [Price comparison](#price-comparison) · [Requirements](#requirements) · [Installation](#installation) · [Open and close the workspace](#open-and-close-the-workspace) · [External commands](#external-commands) · [Behavior switches](#behavior-switches) · [What PaneDeck changes](#what-panedeck-changes)
 
 ## Features
 
@@ -46,6 +35,7 @@ The project primarily targets **OnePlus PLK110**, previously verified on **Andro
 
 - **Stock launcher:** keeps the ColorOS launcher without registering a replacement HOME app, with adaptations for launcher shortcut menus, desktop search, and the assistant panel.
 - **One main window and three live slots:** keep several app tasks visible together and move whole tasks between the main window and slots.
+- **Rounded window corners:** the main window uses 16dp corners and slots use 12dp; a Settings switch restores square corners.
 - **Left and right layouts:** switch the slot sidebar using the layout buttons in the control area.
 - **Portrait and both landscape orientations:** keep the control area and three slots in their layout relative to the phone while the main app follows system rotation. The embedded video can follow the screen direction independently, without moving the control area or rebuilding the slot layout.
 - **Navigation-button adaptation:** optionally fit the main window and slots around the system navigation bar. Enable it for three-button navigation and disable it for gesture navigation; after changing the system navigation mode, toggle the option again.
@@ -69,19 +59,30 @@ Moving a slot app to the background frees the slot while retaining its task and 
 
 The optional **Park the previous main app when switching** setting moves the previous main app into an empty slot when switching from the app strip. If no empty slot is available, the app switch proceeds normally. It is disabled by default.
 
+### Price comparison
+
+Tap the **magnifier** in the workspace top bar, type a keyword, and choose **Shopping** or **Delivery**. PaneDeck opens the search in each installed app at once — the first result in the main window, the rest in the three slots — so you can compare on the spot. No prices are scraped and nothing is ordered; each app opens its own search page.
+
+| Mode | Apps searched (in order) |
+|------|--------------------------|
+| Shopping | JD → Taobao → Pinduoduo → Douyin Mall |
+| Delivery | JD Takeout → Taobao Flash Buy → Meituan |
+
+Apps that are not installed are skipped. If a slot is already occupied, its task is parked to the background (kept in Recents) to make room.
+
 ### App strip and cloned apps
 
 - **Automatic ordering:** arrange app shortcuts by recent usage; this is the default mode.
 - **Manual ordering:** choose up to **36 apps**, remove shortcuts, and long-press selected entries to reorder them.
 - **System app clones:** show cloned apps in the app strip and manual selection list, with clone labels to distinguish them from the original apps.
 
-### Gestures and app exclusions
+### Gestures
 
-- **Four-finger gesture:** pinch four fingers together to enter the workspace and spread them apart to exit. It is enabled by default and can be switched independently of the status-bar gesture.
-- **Game exclusion:** enabled by default. Four-finger gestures are suspended when a system-recognized game is in the foreground or any workspace slot.
-- **App blacklist:** select apps by icon and name, with a checkbox on the right. Four-finger gestures are suspended while a selected app or its system clone is in the foreground or a slot. The list is empty by default.
+- **Bottom-corner gesture:** swipe inward from a bottom screen corner to toggle the workspace. It has its own switch in Settings.
+- **Two-finger swipe:** swipe up or down with two fingers to open the workspace. It has its own switch in Settings.
+- **Swipe up to exit:** swipe up from the workspace to return to fullscreen.
 
-These exclusions apply to the four-finger gesture. Other workspace entry points remain available.
+The status-bar gesture and the four-finger gesture from upstream NeXtep are **not included** in PaneDeck; they were removed. Other workspace entry points (bottom-corner, two-finger, Control Center tile, external commands) remain available.
 
 ### Media controls
 
@@ -123,7 +124,7 @@ Open **Advanced → Runtime and diagnostics → Energy monitor** to view live re
 
 Sampling runs every **5 seconds** while this page is visible and the device is unlocked. Leaving the page or locking the device stops sampling. Unsupported readings appear as **—**.
 
-Battery readings describe the whole device; charging power is not the device's total consumption. CPU usage covers the entire shared SystemUI process, with 100% representing one CPU core. These readings cannot isolate NeXtep's own battery consumption.
+Battery readings describe the whole device; charging power is not the device's total consumption. CPU usage covers the entire shared SystemUI process, with 100% representing one CPU core. These readings cannot isolate PaneDeck's own battery consumption.
 
 The workspace reduces idle task polling, combines pending refreshes, and avoids redundant preview captures. Retained slot displays request **60 Hz** independently of the physical screen's refresh rate. Slot output and task polling are suspended while locked, and the retained workspace resumes after unlocking.
 
@@ -133,27 +134,27 @@ The control area and slot backgrounds use the wallpaper, including adaptations f
 
 | Setting | Options and behavior |
 |---------|----------------------|
-| Top content | NeXtep icon, time, date and weekday, blank, or custom text. The default is the icon; mode changes take effect immediately. |
+| Top content | PaneDeck icon, time, date and weekday, blank, or custom text. The default is the icon; mode changes take effect immediately. |
 | Clock seconds | Optional, disabled by default; the switch appears beside the time option. |
 | Custom text | The editor appears in custom-text mode. Drafts are remembered when switching modes; tap **Save text** to apply edits. |
 | Looping text | Disabled by default. Enable continuous scrolling for both short and long text; otherwise text is centered and overflow is ellipsized. Scrolling pauses while the workspace is hidden. |
 | Font | Search, preview, and select fonts installed on the device, or choose a generic font family. System default follows the device's font setting. |
 | Text size and weight | **10–28 sp**, default **16 sp**, with optional bold styling and an input preview. |
 | Frost strength | **0–100**, default **50**. Release the slider to save and apply the value to the control area and slot backgrounds. |
-| Launcher icon | Choose default, spring, summer, autumn, winter, or dark artwork, or switch automatically with the season. System dark mode or power-saving mode temporarily uses the dark icon. Icon changes preserve its launcher position. |
+| Launcher icon | Choose the default or dark artwork, or switch automatically with the system dark mode / power-saving mode. Icon changes preserve its launcher position. |
 
 ### Settings, languages, and updates
 
 - **Settings / Advanced / About:** use bottom navigation to switch between workspace settings, runtime diagnostics and external-control commands, and project information. The settings interface follows the system's light or dark theme and uses a liquid-glass bottom navigation bar.
 - **Advanced page groups:** separate **Runtime and diagnostics** from **Shell commands**, with energy monitoring, command prerequisites, copy buttons, and setup instructions in their respective sections.
 - **Languages:** follow the system or select **Simplified Chinese, Traditional Chinese, English, Japanese, or Korean** for the app and workspace.
-- **Settings shortcut:** tap the control area's gear button to open NeXtep settings while keeping workspace mode active.
+- **Settings shortcut:** tap the control area's gear button to open PaneDeck settings while keeping workspace mode active.
 - **About:** view the installed version, check for updates, open release and source pages, and read license information and acknowledgements.
 - **Update download:** view available release notes and open the APK download in a browser. Downloaded updates are installed manually.
 
 ## Requirements
 
-- **OnePlus PLK110**: previously verified on **Android 16 / API 36, ColorOS 16**; recent partial device testing uses **Android 17 / API 37, ColorOS 17**. The APK minimum is API 35, which does not imply compatibility with every device on that API level.
+- **OnePlus PLK110**: verified on **Android 16 / API 36, ColorOS 16** and **Android 17 / API 37, ColorOS 17**. The APK minimum is API 35, which does not imply compatibility with every device on that API level.
 - A matching **ColorOS 16 / 17** build on an adapted device.
 - **KernelSU** or another compatible root solution.
 - **Zygisk and LSPosed** with modern libxposed API support.
@@ -165,21 +166,22 @@ Testing has not covered every app or edge case. Other devices and ROMs require s
 
 ## Installation
 
-1. Download the APK from [GitHub Releases](https://github.com/lujinxin/NeXtep/releases), or build it using [docs/BUILDING.md](docs/BUILDING.md).
+1. Download the APK from [GitHub Releases](https://github.com/JHeyzo/PaneDeck/releases), or build it using [docs/BUILDING.md](docs/BUILDING.md).
 2. Install it on the target device.
-3. Enable NeXtep in LSPosed for all applicable packages in the bundled scope list.
+3. Enable PaneDeck in LSPosed for all applicable packages in the bundled scope list.
 4. Reboot the device.
-5. Open NeXtep's **Settings** page to configure the workspace and add its Control Center tile.
+5. Open PaneDeck's **Settings** page to configure the workspace and add its Control Center tile.
 
 ## Open and close the workspace
 
 After enabling the module and rebooting, unlock the device. Use any of these entry points:
 
-- **Status-bar gesture:** swipe horizontally to the left from the top-right status-bar area. Swiping down still opens the system notification shade or Control Center. The gesture is enabled by default and can be disabled independently.
-- **Four-finger gesture:** pinch to enter and spread to exit. The independent switch, game exclusion, and app blacklist are on the **Settings** page.
-- **Control Center tile:** in NeXtep's Settings, tap **Add** in the **Control Center entry** row and confirm. Pull down Control Center and tap **NeXtep** to toggle the workspace. If adding it from the app fails, use Control Center's edit screen.
+- **Bottom-corner gesture:** swipe inward from a bottom screen corner. It has its own switch in Settings.
+- **Two-finger swipe:** swipe up or down with two fingers. It has its own switch in Settings.
+- **Control Center tile:** in PaneDeck's Settings, tap **Add** in the **Control Center entry** row and confirm. Pull down Control Center and tap **PaneDeck** to toggle the workspace. If adding it from the app fails, use Control Center's edit screen.
 - **External commands:** copy commands from the **Advanced** page into a gesture, shortcut, automation, or terminal tool; see below.
 - **Exit button:** tap the exit button in the workspace control area to return to fullscreen.
+- **Swipe up:** swipe up from the workspace to return to fullscreen.
 
 ### External commands
 
@@ -211,12 +213,26 @@ These switches are on the **Settings** page; appearance and app ordering are des
 
 | Setting | Default | Behavior |
 |---------|---------|----------|
-| Status-bar gesture | On | Enable or disable the top-right horizontal gesture. The Control Center tile remains available. |
-| Four-finger gesture | On | Pinch four fingers together to enter and spread them apart to exit. |
-| Block gestures in games | On | Suspend four-finger gestures when a recognized game is in the foreground or a slot. App blacklist exclusions can be configured separately. |
+| Bottom-corner gesture | On | Enable or disable the bottom-corner swipe. The Control Center tile remains available. |
+| Two-finger swipe gesture | On | Enable or disable the two-finger swipe up/down. |
 | Swipe slot apps to the background | On | Enable or disable outward swipe dismissal. Dragging a slot to the control area remains available. |
 | Park the previous main app when switching | Off | Move the previous main app into an empty slot when switching from the app strip; switch normally if none is available. |
 | Navigation-button adaptation | Off | Enable for three-button navigation and disable for gesture navigation. Toggle again after changing the system navigation mode. |
+| Rounded window corners | On | Round the main window (16dp) and slot corners (12dp); disable for square corners. |
+
+## What PaneDeck changes
+
+PaneDeck is based on **NeXtep 2.1.0 by lujinxin** (Apache-2.0). The changes below are PaneDeck's own work, on top of the upstream codebase:
+
+- **One-tap price comparison:** magnifier in the top bar searches a keyword across JD, Taobao, Pinduoduo, and Douyin Mall (shopping) or JD Takeout, Taobao Flash Buy, and Meituan (delivery), each result in its own window.
+- **Rounded window corners:** main window 16dp, slots 12dp, with a Settings switch for square corners.
+- **Per-gesture switches:** the bottom-corner gesture has its own switch; the two-finger swipe has its own switch.
+- **Removed upstream gestures:** the status-bar trigger gesture and the four-finger gesture (including game exclusion and the app blacklist) were removed.
+- **Simplified launcher icons:** only the default and dark icons remain (seasonal icons removed); the dark icon follows system dark mode / power saving automatically.
+- **ColorOS 17 fixes and third-party launcher support:** including the Control Center tile staying usable when the default launcher is a third-party launcher (e.g. Niagara Launcher).
+- **About page:** presents PaneDeck as a modified version based on NeXtep, with the price-comparison feature described.
+
+The upstream NeXtep project, its architecture, and the workspace implementation it provides remain lujinxin's work under the Apache License 2.0. See [License and attribution](#license-and-attribution).
 
 ## Architecture
 
@@ -230,20 +246,12 @@ The diagram shows how the regular APK coordinates with the LSPosed-injected Syst
   </a>
 </p>
 
-## Feedback group
-
-QQ group: **1128561895**
-
-<p align="center">
-  <img src="assets/qq-group-qrcode.jpg" alt="NeXtep QQ feedback group QR code" width="360">
-</p>
-
 ## Acknowledgements
 
-Special thanks to **Smartisan OS OneStep** for the product concept and interaction inspiration behind this project.
+Special thanks to **Smartisan OS OneStep** for the product concept and interaction inspiration behind this project, and to **lujinxin (Jensen Lu)** for **NeXtep**, the open-source ColorOS workspace this project is based on.
 
 ## License and attribution
 
-NeXtep is licensed under the [Apache License 2.0](LICENSE). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for third-party attribution and design provenance.
+PaneDeck is licensed under the [Apache License 2.0](LICENSE). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for third-party attribution and design provenance.
 
-Copyright 2026 lujinxin.
+PaneDeck is a modified version based on **NeXtep by lujinxin**, licensed under the Apache License 2.0. The upstream NeXtep project is copyright lujinxin; PaneDeck's modifications are copyright JHeyzo. The Apache License 2.0 requires that modified files carry notices stating the changes made; see the source headers and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
