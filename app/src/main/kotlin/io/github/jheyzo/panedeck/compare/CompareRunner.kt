@@ -27,10 +27,18 @@ internal class CompareRunner(
     private val openSearches: (List<Intent>, (Result<Unit>) -> Unit) -> Boolean,
     private val canOpen: (Intent) -> Boolean,
 ) {
-    fun run(mode: CompareIntents.Mode, query: String): Boolean {
+    /**
+     * [selectedNames] limits the round to named targets (null = all
+     * targets, e.g. the dialog since v17 and the Settings broadcast).
+     * The workspace fits 4 windows (1 main + 3 slots), so the first 4
+     * available targets run.
+     */
+    fun run(mode: CompareIntents.Mode, query: String, selectedNames: Set<String>? = null): Boolean {
         val requested = runCatching { CompareIntents.searches(mode, query) }.getOrNull()
             ?: return false
-        val available = requested.mapNotNull { target ->
+        val filtered = if (selectedNames == null) requested
+        else requested.filter { it.name in selectedNames }
+        val available = filtered.mapNotNull { target ->
             when {
                 canOpen(target.intent) -> target.intent
                 target.intent.`package` == "com.sankuai.meituan" -> {

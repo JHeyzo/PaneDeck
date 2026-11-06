@@ -29,6 +29,18 @@ import org.json.JSONObject
  * CompareRunner. An https fallback that lands in a browser may hit the
  * site's login wall (known for Taobao and Pinduoduo web search); in-app
  * App-Link handling is the expected path, not the browser.
+ *
+ * 阿里巴巴 was removed 2026-11-06 (user: "既然阿里巴巴不行就删了吧"):
+ * the user runs the domestic 1688 app (com.alibaba.wireless 12.16.1.0),
+ * whose search results page is not exported, has no URL intent filter,
+ * and has no s.1688.com host in its manifest — 1688 search cannot be
+ * deep-linked, and the browser fallback was not worth a greyed-out slot.
+ *
+ * Default order (user-set 2026-11-06): shopping 京东 → 淘宝 → 拼多多 →
+ * 抖音商城; delivery 京东外卖 → 淘宝闪购 → 美团外卖. The first target
+ * goes to the main window; the dialog searches all installed targets
+ * (Panes behaviour, no per-app selection since v17), so the order is
+ * the user's priority order.
  */
 internal object CompareIntents {
     enum class Mode { SHOPPING, DELIVERY }
@@ -54,16 +66,6 @@ internal object CompareIntents {
             Target("美团外卖", view("imeituan://www.meituan.com/takeout/poi/search?query=$encoded", "com.sankuai.meituan")),
         ) else listOf(
             Target(
-                "拼多多",
-                view("pinduoduo://com.xunmeng.pinduoduo/search_result.html?search_key=$encoded", "com.xunmeng.pinduoduo"),
-                https("https://mobile.yangkeduo.com/search_result.html?search_key=$encoded", "com.xunmeng.pinduoduo"),
-            ),
-            Target(
-                "抖音商城",
-                view("snssdk1128://search?keyword=$encoded&search_style=commodity_center&hideMiddlePage=1", "com.ss.android.ugc.aweme"),
-                https("https://www.douyin.com/search/$encoded?type=general", "com.ss.android.ugc.aweme"),
-            ),
-            Target(
                 "京东",
                 jd(false),
                 https("https://search.jd.com/Search?keyword=$encoded&enc=utf-8", "com.jingdong.app.mall"),
@@ -72,6 +74,16 @@ internal object CompareIntents {
                 "淘宝",
                 view("taobao://s.taobao.com/search?q=$encoded", "com.taobao.taobao"),
                 https("https://s.taobao.com/search?q=$encoded", "com.taobao.taobao"),
+            ),
+            Target(
+                "拼多多",
+                view("pinduoduo://com.xunmeng.pinduoduo/search_result.html?search_key=$encoded", "com.xunmeng.pinduoduo"),
+                https("https://mobile.yangkeduo.com/search_result.html?search_key=$encoded", "com.xunmeng.pinduoduo"),
+            ),
+            Target(
+                "抖音商城",
+                view("snssdk1128://search?keyword=$encoded&search_style=commodity_center&hideMiddlePage=1", "com.ss.android.ugc.aweme"),
+                https("https://www.douyin.com/search/$encoded?type=general", "com.ss.android.ugc.aweme"),
             ),
         )
     }
