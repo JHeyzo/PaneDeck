@@ -26,12 +26,7 @@ internal object LauncherIconPreference {
         }
         fun updateButton() {
             val current = LauncherIconManager.currentIcon(activity)
-            val selection = LauncherIconManager.selection(activity)
-            button.text = if (current == LauncherIconStyle.NIGHT) {
-                activity.getString(R.string.launcher_icon_night)
-            } else if (selection == LauncherIconManager.AUTOMATIC) {
-                activity.getString(R.string.launcher_icon_automatic_current, activity.getString(current.label))
-            } else activity.getString(LauncherIconStyle.fromKey(selection)!!.label)
+            button.text = activity.getString(current.label)
             button.icon = activity.getDrawable(current.artwork)
             button.contentDescription = activity.getString(R.string.setting_description,
                 activity.getString(R.string.launcher_icon_title), button.text)
@@ -48,17 +43,15 @@ internal object LauncherIconPreference {
             }
         })
         button.setOnClickListener {
-            val seasonal = LauncherIconManager.seasonalIcon()
-            val choices = listOf(LauncherIconManager.AUTOMATIC) + LauncherIconStyle.selectable.map { it.key }
+            val choices = LauncherIconStyle.selectable.map { it.key }
             val labels = choices.map { key ->
-                if (key == LauncherIconManager.AUTOMATIC) activity.getString(R.string.launcher_icon_automatic)
-                else activity.getString(LauncherIconStyle.fromKey(key)!!.label)
+                activity.getString(LauncherIconStyle.fromKey(key)!!.label)
             }
             val adapter = object : ArrayAdapter<String>(activity,
                 android.R.layout.select_dialog_singlechoice, labels) {
                 override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                     val row = super.getView(position, convertView, parent) as CheckedTextView
-                    val style = LauncherIconStyle.fromKey(choices[position]) ?: seasonal
+                    val style = LauncherIconStyle.fromKey(choices[position]) ?: LauncherIconStyle.DEFAULT
                     val preview = activity.getDrawable(style.artwork)?.apply { setBounds(0, 0, dp(44), dp(44)) }
                     row.setCompoundDrawablesRelative(preview, null, null, null)
                     row.compoundDrawablePadding = dp(16)

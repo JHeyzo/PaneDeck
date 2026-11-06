@@ -25,7 +25,6 @@ data class WorkspaceTopConfig(
     val textFontFamily: String = TopTextStyle.DEFAULT_FAMILY,
     val textSizeSp: Int = TopTextStyle.DEFAULT_SIZE_SP,
     val textBold: Boolean = false,
-    val statusBarGestureEnabled: Boolean = true,
     val slotBackgroundSwipeEnabled: Boolean = true,
     val autoMinimizeMainOnTopAppSwitch: Boolean = false,
     val navigationButtonsEnabled: Boolean = false,
@@ -35,10 +34,8 @@ data class WorkspaceTopConfig(
     val paneRounded: Boolean = true,
     val languageTag: String = "",
     val swapAnimationDurationMs: Int = WorkspaceConfigContract.DEFAULT_SWAP_ANIMATION_DURATION_MS,
-    val fourFingerGestureEnabled: Boolean = true,
-    val fourFingerGestureBlockGames: Boolean = true,
-    val fourFingerGestureBlacklist: Set<String> = emptySet(),
     val bottomCornerGestureEnabled: Boolean = true,
+    val twoFingerSwipeGestureEnabled: Boolean = true,
 )
 
 object WorkspaceConfigContract {
@@ -54,11 +51,8 @@ object WorkspaceConfigContract {
     const val EXTRA_TEXT_FONT = "io.github.jheyzo.panedeck.extra.TOP_TEXT_FONT"
     const val EXTRA_TEXT_SIZE = "io.github.jheyzo.panedeck.extra.TOP_TEXT_SIZE"
     const val EXTRA_TEXT_BOLD = "io.github.jheyzo.panedeck.extra.TOP_TEXT_BOLD"
-    const val EXTRA_STATUS_BAR_GESTURE_ENABLED = "io.github.jheyzo.panedeck.extra.STATUS_BAR_GESTURE_ENABLED"
-    const val EXTRA_FOUR_FINGER_GESTURE_ENABLED = "io.github.jheyzo.panedeck.extra.FOUR_FINGER_GESTURE_ENABLED"
-    const val EXTRA_FOUR_FINGER_GESTURE_BLOCK_GAMES = "io.github.jheyzo.panedeck.extra.FOUR_FINGER_GESTURE_BLOCK_GAMES"
-    const val EXTRA_FOUR_FINGER_GESTURE_BLACKLIST = "io.github.jheyzo.panedeck.extra.FOUR_FINGER_GESTURE_BLACKLIST"
     const val EXTRA_BOTTOM_CORNER_GESTURE_ENABLED = "io.github.jheyzo.panedeck.extra.BOTTOM_CORNER_GESTURE_ENABLED"
+    const val EXTRA_TWO_FINGER_SWIPE_GESTURE_ENABLED = "io.github.jheyzo.panedeck.extra.TWO_FINGER_SWIPE_GESTURE_ENABLED"
     const val EXTRA_SLOT_BACKGROUND_SWIPE_ENABLED = "io.github.jheyzo.panedeck.extra.SLOT_BACKGROUND_SWIPE_ENABLED"
     const val EXTRA_AUTO_MINIMIZE_MAIN = "io.github.jheyzo.panedeck.extra.AUTO_MINIMIZE_MAIN_ON_TOP_APP_SWITCH"
     const val EXTRA_NAVIGATION_BUTTONS_ENABLED = "io.github.jheyzo.panedeck.extra.NAVIGATION_BUTTONS_ENABLED"
@@ -105,16 +99,12 @@ class WorkspaceConfigReceiver : BroadcastReceiver() {
                 putString(WorkspaceConfigContract.EXTRA_TEXT_FONT, settings.textFontFamily)
                 putInt(WorkspaceConfigContract.EXTRA_TEXT_SIZE, settings.textSizeSp)
                 putBoolean(WorkspaceConfigContract.EXTRA_TEXT_BOLD, settings.textBold)
-                putBoolean(WorkspaceConfigContract.EXTRA_STATUS_BAR_GESTURE_ENABLED, settings.statusBarGestureEnabled)
-                putBoolean(WorkspaceConfigContract.EXTRA_FOUR_FINGER_GESTURE_ENABLED, settings.fourFingerGestureEnabled)
-                putBoolean(WorkspaceConfigContract.EXTRA_FOUR_FINGER_GESTURE_BLOCK_GAMES, settings.fourFingerGestureBlockGames)
-                putStringArrayList(WorkspaceConfigContract.EXTRA_FOUR_FINGER_GESTURE_BLACKLIST,
-                    ArrayList(settings.fourFingerGestureBlacklist.sorted()))
                 putBoolean(WorkspaceConfigContract.EXTRA_SLOT_BACKGROUND_SWIPE_ENABLED, settings.slotBackgroundSwipeEnabled)
                 putBoolean(WorkspaceConfigContract.EXTRA_AUTO_MINIMIZE_MAIN, settings.autoMinimizeMainOnTopAppSwitch)
                 putBoolean(WorkspaceConfigContract.EXTRA_NAVIGATION_BUTTONS_ENABLED, settings.navigationButtonsEnabled)
                 putBoolean(WorkspaceConfigContract.EXTRA_PANE_ROUNDED, settings.paneRounded)
                 putBoolean(WorkspaceConfigContract.EXTRA_BOTTOM_CORNER_GESTURE_ENABLED, settings.bottomCornerGestureEnabled)
+                putBoolean(WorkspaceConfigContract.EXTRA_TWO_FINGER_SWIPE_GESTURE_ENABLED, settings.twoFingerSwipeGestureEnabled)
                 putInt(WorkspaceConfigContract.EXTRA_SWAP_ANIMATION_DURATION_MS, settings.swapAnimationDurationMs)
                 putString(WorkspaceConfigContract.EXTRA_LANGUAGE_TAG, AppLanguage.selectedTag(context))
                 putStringArrayList(
@@ -242,18 +232,6 @@ object WorkspaceConfigClient {
             textSizeSp = (extras?.getInt(WorkspaceConfigContract.EXTRA_TEXT_SIZE, TopTextStyle.DEFAULT_SIZE_SP)
                 ?: TopTextStyle.DEFAULT_SIZE_SP).coerceIn(TopTextStyle.MIN_SIZE_SP, TopTextStyle.MAX_SIZE_SP),
             textBold = extras?.getBoolean(WorkspaceConfigContract.EXTRA_TEXT_BOLD, false) ?: false,
-            statusBarGestureEnabled = extras?.getBoolean(
-                WorkspaceConfigContract.EXTRA_STATUS_BAR_GESTURE_ENABLED, true,
-            ) ?: true,
-            fourFingerGestureEnabled = extras.getBoolean(
-                WorkspaceConfigContract.EXTRA_FOUR_FINGER_GESTURE_ENABLED, true,
-            ),
-            fourFingerGestureBlockGames = extras.getBoolean(
-                WorkspaceConfigContract.EXTRA_FOUR_FINGER_GESTURE_BLOCK_GAMES, true,
-            ),
-            fourFingerGestureBlacklist = extras.getStringArrayList(
-                WorkspaceConfigContract.EXTRA_FOUR_FINGER_GESTURE_BLACKLIST,
-            ).orEmpty().filter(String::isNotBlank).toSet(),
             slotBackgroundSwipeEnabled = extras?.getBoolean(
                 WorkspaceConfigContract.EXTRA_SLOT_BACKGROUND_SWIPE_ENABLED, true,
             ) ?: true,
@@ -268,6 +246,9 @@ object WorkspaceConfigClient {
             ) ?: true,
             bottomCornerGestureEnabled = extras?.getBoolean(
                 WorkspaceConfigContract.EXTRA_BOTTOM_CORNER_GESTURE_ENABLED, true,
+            ) ?: true,
+            twoFingerSwipeGestureEnabled = extras?.getBoolean(
+                WorkspaceConfigContract.EXTRA_TWO_FINGER_SWIPE_GESTURE_ENABLED, true,
             ) ?: true,
             swapAnimationDurationMs = WorkspaceConfigContract.normalizeSwapAnimationDurationMs(
                 extras.getInt(WorkspaceConfigContract.EXTRA_SWAP_ANIMATION_DURATION_MS,

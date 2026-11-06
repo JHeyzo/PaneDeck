@@ -16,16 +16,13 @@ class SettingsRepository(private val context: Context) {
         val textFontFamily: String,
         val textSizeSp: Int,
         val textBold: Boolean,
-        val statusBarGestureEnabled: Boolean,
         val slotBackgroundSwipeEnabled: Boolean,
         val autoMinimizeMainOnTopAppSwitch: Boolean,
         val navigationButtonsEnabled: Boolean,
         val paneRounded: Boolean,
         val swapAnimationDurationMs: Int,
-        val fourFingerGestureEnabled: Boolean = true,
-        val fourFingerGestureBlockGames: Boolean = true,
-        val fourFingerGestureBlacklist: Set<String> = emptySet(),
         val bottomCornerGestureEnabled: Boolean = true,
+        val twoFingerSwipeGestureEnabled: Boolean = true,
     )
 
     fun topBarSettings(): TopBarSettings = TopBarSettings(
@@ -46,7 +43,6 @@ class SettingsRepository(private val context: Context) {
         textSizeSp = preferences.getInt("top_text_size", TopTextStyle.DEFAULT_SIZE_SP)
             .coerceIn(TopTextStyle.MIN_SIZE_SP, TopTextStyle.MAX_SIZE_SP),
         textBold = preferences.getBoolean("top_text_bold", false),
-        statusBarGestureEnabled = preferences.getBoolean("status_bar_gesture_enabled", true),
         slotBackgroundSwipeEnabled = preferences.getBoolean("slot_background_swipe_enabled", true),
         autoMinimizeMainOnTopAppSwitch = preferences.getBoolean("auto_minimize_main_on_top_app_switch", false),
         navigationButtonsEnabled = preferences.getBoolean("navigation_buttons_enabled", false),
@@ -54,33 +50,22 @@ class SettingsRepository(private val context: Context) {
         swapAnimationDurationMs = WorkspaceConfigContract.normalizeSwapAnimationDurationMs(
             preferences.getInt(KEY_SWAP_ANIMATION_DURATION_MS, WorkspaceConfigContract.DEFAULT_SWAP_ANIMATION_DURATION_MS),
         ),
-        fourFingerGestureEnabled = preferences.getBoolean(KEY_FOUR_FINGER_GESTURE_ENABLED, true),
-        fourFingerGestureBlockGames = preferences.getBoolean(KEY_FOUR_FINGER_GESTURE_BLOCK_GAMES, true),
-        fourFingerGestureBlacklist = preferences.getStringSet(KEY_FOUR_FINGER_GESTURE_BLACKLIST, emptySet())
-            .orEmpty().toSet(),
         bottomCornerGestureEnabled = preferences.getBoolean(KEY_BOTTOM_CORNER_GESTURE_ENABLED, true),
+        twoFingerSwipeGestureEnabled = preferences.getBoolean(KEY_TWO_FINGER_SWIPE_GESTURE_ENABLED, true),
     )
 
-    fun setFourFingerGestureEnabled(enabled: Boolean) {
-        preferences.edit().putBoolean(KEY_FOUR_FINGER_GESTURE_ENABLED, enabled).apply()
-        notifyTopContentChanged()
-    }
 
     fun setBottomCornerGestureEnabled(enabled: Boolean) {
         preferences.edit().putBoolean(KEY_BOTTOM_CORNER_GESTURE_ENABLED, enabled).apply()
         notifyTopContentChanged()
     }
 
-    fun setFourFingerGestureBlockGames(enabled: Boolean) {
-        preferences.edit().putBoolean(KEY_FOUR_FINGER_GESTURE_BLOCK_GAMES, enabled).apply()
+    fun setTwoFingerSwipeGestureEnabled(enabled: Boolean) {
+        preferences.edit().putBoolean(KEY_TWO_FINGER_SWIPE_GESTURE_ENABLED, enabled).apply()
         notifyTopContentChanged()
     }
 
-    fun setFourFingerGestureBlacklist(packages: Set<String>) {
-        preferences.edit().putStringSet(KEY_FOUR_FINGER_GESTURE_BLACKLIST,
-            packages.map(String::trim).filter(String::isNotEmpty).toSet()).apply()
-        notifyTopContentChanged()
-    }
+
 
     fun setSwapAnimationDurationMs(durationMs: Int) {
         preferences.edit().putInt(KEY_SWAP_ANIMATION_DURATION_MS,
@@ -98,10 +83,6 @@ class SettingsRepository(private val context: Context) {
         notifyTopContentChanged()
     }
 
-    fun setStatusBarGestureEnabled(enabled: Boolean) {
-        preferences.edit().putBoolean("status_bar_gesture_enabled", enabled).apply()
-        notifyTopContentChanged()
-    }
 
     fun setAutoMinimizeMainOnTopAppSwitch(enabled: Boolean) {
         preferences.edit().putBoolean("auto_minimize_main_on_top_app_switch", enabled).apply()
@@ -191,10 +172,8 @@ class SettingsRepository(private val context: Context) {
         const val KEY_TOP_APPS = "top_apps"
         const val KEY_MANUAL_APP_ORDER = "manual_app_order"
         const val KEY_SWAP_ANIMATION_DURATION_MS = "window_swap_animation_duration_ms"
-        const val KEY_FOUR_FINGER_GESTURE_ENABLED = "four_finger_gesture_enabled"
-        const val KEY_FOUR_FINGER_GESTURE_BLOCK_GAMES = "four_finger_gesture_block_games"
-        const val KEY_FOUR_FINGER_GESTURE_BLACKLIST = "four_finger_gesture_blacklist"
         const val KEY_BOTTOM_CORNER_GESTURE_ENABLED = "bottom_corner_gesture_enabled"
+        const val KEY_TWO_FINGER_SWIPE_GESTURE_ENABLED = "two_finger_swipe_gesture_enabled"
         const val DEFAULT_TOP_TITLE = ""
         const val COMPONENT_SEPARATOR = "\n"
         const val MAX_TOP_APPS = 36
