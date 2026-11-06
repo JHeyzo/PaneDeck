@@ -66,57 +66,9 @@
             </intent-filter>
         </activity-alias>
 
-        <activity-alias
-            android:name=".icons.SpringLauncher"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_spring"
-            android:label="@string/app_name"
-            android:targetActivity=".icons.LauncherEntryActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
 
-        <activity-alias
-            android:name=".icons.SummerLauncher"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_summer"
-            android:label="@string/app_name"
-            android:targetActivity=".icons.LauncherEntryActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
 
-        <activity-alias
-            android:name=".icons.AutumnLauncher"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_autumn"
-            android:label="@string/app_name"
-            android:targetActivity=".icons.LauncherEntryActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
 
-        <activity-alias
-            android:name=".icons.WinterLauncher"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_winter"
-            android:label="@string/app_name"
-            android:targetActivity=".icons.LauncherEntryActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity-alias>
 
         <activity-alias
             android:name=".icons.NightLauncher"
@@ -145,7 +97,7 @@
         <service
             android:name=".trigger.NeXtepTileService"
             android:exported="true"
-            android:icon="@drawable/ic_nextep_tile"
+            android:icon="@drawable/ic_panedeck_tile"
             android:label="@string/app_name"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
