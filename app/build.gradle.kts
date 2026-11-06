@@ -14,8 +14,8 @@ android {
         applicationId = "io.github.jheyzo.panedeck"
         minSdk = 35
         targetSdk = 36
-        versionCode = 17
-        versionName = "2.1.0"
+        versionCode = 22
+        versionName = "1.0.0"
 
     }
 
