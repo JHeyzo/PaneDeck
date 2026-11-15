@@ -1,12 +1,15 @@
 package io.github.jheyzo.panedeck.systemui
 
 import android.annotation.SuppressLint
+import android.app.GameManager
 import android.app.KeyguardManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
 import android.hardware.display.DisplayManager
 import android.os.Bundle
 import android.os.Handler
@@ -25,6 +28,7 @@ import io.github.jheyzo.panedeck.monitoring.WorkspaceEnergyContract
 import io.github.jheyzo.panedeck.monitoring.WorkspaceEnergyDiagnostics
 import io.github.jheyzo.panedeck.logging.NeXtepLog
 import io.github.jheyzo.panedeck.task.MainTaskPresentationCoordinator
+import io.github.jheyzo.panedeck.task.TaskRepository
 import io.github.jheyzo.panedeck.trigger.TriggerBroadcastContract
 import io.github.jheyzo.panedeck.trigger.WorkspaceRecoveryPolicy
 import io.github.jheyzo.panedeck.workspace.SidebarSide
@@ -104,7 +108,8 @@ object SystemUiRuntime {
                     "mainRadiusPx=${TaskSurfaceCompat.mainPaneCornerRadiusPx} " +
                     "slotRadiusPx=${TaskSurfaceCompat.slotPaneCornerRadiusPx} " +
                     "bottomCornerGesture=${workspaceConfig.bottomCornerGestureEnabled} " +
-                    "twoFingerSwipe=${workspaceConfig.twoFingerSwipeGestureEnabled}",
+                    "twoFingerSwipe=${workspaceConfig.twoFingerSwipeGestureEnabled} " +
+                    "twoFingerBlockGames=${workspaceConfig.twoFingerSwipeBlockGames}",
             )
         }
     }
@@ -114,6 +119,41 @@ object SystemUiRuntime {
 
     fun isTwoFingerSwipeGestureEnabled(): Boolean =
         workspaceConfigReady && workspaceConfig.twoFingerSwipeGestureEnabled
+
+    // Game blocking for the two-finger gesture (ported from upstream NeXtep's
+    // four-finger game block, which was deleted in v19): a landscape game
+    // swallows two-finger swipes constantly, so when the foreground task is
+    // a recognised game the gesture simply does not fire. Fail-open: if the
+    // foreground task cannot be determined, the gesture still works.
+    private val taskRepository by lazy { TaskRepository(applicationContext) }
+    private val gameManager by lazy {
+        runCatching { applicationContext.getSystemService(GameManager::class.java) }.getOrNull()
+    }
+    private val gameModeMethod by lazy {
+        runCatching { gameManager?.javaClass?.getMethod("getGameMode", String::class.java) }.getOrNull()
+    }
+
+    fun isTwoFingerGestureBlockedByGame(): Boolean {
+        if (!workspaceConfigReady || !workspaceConfig.twoFingerSwipeBlockGames) return false
+        val foreground = runCatching { taskRepository.foregroundTask() }.getOrNull() ?: return false
+        return isGame(foreground.component.packageName)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun isGame(packageName: String): Boolean {
+        val application = runCatching {
+            applicationContext.packageManager.getApplicationInfo(
+                packageName, PackageManager.ApplicationInfoFlags.of(0L),
+            )
+        }.getOrNull()
+        if (application?.category == ApplicationInfo.CATEGORY_GAME ||
+            (application != null && application.flags and ApplicationInfo.FLAG_IS_GAME != 0)
+        ) return true
+        // A system-selected game mode also covers games whose manifest has no game category.
+        // This package-scoped overload is a system API; never query SystemUI's own game mode.
+        val mode = runCatching { gameModeMethod?.invoke(gameManager, packageName) as? Int }.getOrNull()
+        return mode != null && mode != GameManager.GAME_MODE_UNSUPPORTED
+    }
 
     fun shouldAutoMinimizeMainOnTopAppSwitch(): Boolean = workspaceConfig.autoMinimizeMainOnTopAppSwitch
 

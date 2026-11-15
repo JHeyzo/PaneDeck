@@ -148,8 +148,21 @@ object SystemUiBottomCornerGestureMonitor {
                                 if (confirmed == null && SystemUiRuntime.isTwoFingerSwipeGestureEnabled()) {
                                     val result = twoFingerDetector.observe(event, size.x, size.y)
                                     if (result == TwoFingerSwipeGestureDetector.Result.CONFIRMED) {
-                                        confirmed = twoFingerDetector.lastConfirmed
-                                        toggle = SystemUiRuntime::toggleWorkspaceFromTwoFingerSwipeGesture
+                                        // Game block (v24): a landscape game swallows
+                                        // two-finger swipes constantly, so when the
+                                        // foreground task is a recognised game the
+                                        // gesture does not fire at all — no pilfer,
+                                        // no haptic, no toggle. The detector already
+                                        // stopped tracking on CONFIRMED.
+                                        if (SystemUiRuntime.isTwoFingerGestureBlockedByGame()) {
+                                            NeXtepLog.info(
+                                                "bottom_corner_gesture",
+                                                "Two-finger swipe blocked: foreground is a game",
+                                            )
+                                        } else {
+                                            confirmed = twoFingerDetector.lastConfirmed
+                                            toggle = SystemUiRuntime::toggleWorkspaceFromTwoFingerSwipeGesture
+                                        }
                                     }
                                 }
                                 if (confirmed != null && toggle != null) {
