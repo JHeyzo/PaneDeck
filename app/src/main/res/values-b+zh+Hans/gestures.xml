@@ -4,4 +4,6 @@
     <string name="bottom_corner_gesture_summary">从左下角向右上、或右下角向左上斜滑约 45 度，打开或关闭工作区。</string>
     <string name="two_finger_swipe_gesture_title">双指上下滑手势</string>
     <string name="two_finger_swipe_gesture_summary">双指一起上滑或下滑，打开或关闭工作区。</string>
+    <string name="two_finger_block_games_title">游戏中屏蔽双指手势</string>
+    <string name="two_finger_block_games_summary">系统识别的游戏在前台时，双指上下滑不触发。</string>
 </resources>
