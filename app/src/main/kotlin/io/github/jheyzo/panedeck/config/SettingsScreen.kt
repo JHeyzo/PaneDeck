@@ -210,9 +210,21 @@ object SettingsScreen {
                         repository::setTwoFingerSwipeGestureEnabled,
                     ), matchWidth())
                     addView(settingDivider(activity))
+                    // Game block for the two-finger gesture (v24, user
+                    // 2026-11-15: landscape games swallow two-finger
+                    // swipes constantly). Ported from upstream NeXtep's
+                    // four-finger game block (deleted in v19 with the
+                    // four-finger gesture itself).
+                    addView(settingSwitchRow(
+                        activity,
+                        activity.getString(R.string.two_finger_block_games_title),
+                        activity.getString(R.string.two_finger_block_games_summary),
+                        settings.twoFingerSwipeBlockGames,
+                        repository::setTwoFingerSwipeBlockGames,
+                    ), matchWidth())
+                    addView(settingDivider(activity))
                     // Four-finger gesture removed (2026-11-06, user: "也没用，
-                    // 删了") — its switch row, game-block row and app
-                    // blacklist row, config and hooks are gone.
+                    // 删了") — its switch row, config and hooks are gone.
                     addView(settingSwitchRow(
                         activity,
                         activity.getString(R.string.background_swipe_title),

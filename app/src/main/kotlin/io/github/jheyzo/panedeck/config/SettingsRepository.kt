@@ -23,6 +23,7 @@ class SettingsRepository(private val context: Context) {
         val swapAnimationDurationMs: Int,
         val bottomCornerGestureEnabled: Boolean = true,
         val twoFingerSwipeGestureEnabled: Boolean = true,
+        val twoFingerSwipeBlockGames: Boolean = true,
     )
 
     fun topBarSettings(): TopBarSettings = TopBarSettings(
@@ -52,6 +53,7 @@ class SettingsRepository(private val context: Context) {
         ),
         bottomCornerGestureEnabled = preferences.getBoolean(KEY_BOTTOM_CORNER_GESTURE_ENABLED, true),
         twoFingerSwipeGestureEnabled = preferences.getBoolean(KEY_TWO_FINGER_SWIPE_GESTURE_ENABLED, true),
+        twoFingerSwipeBlockGames = preferences.getBoolean(KEY_TWO_FINGER_SWIPE_BLOCK_GAMES, true),
     )
 
 
@@ -62,6 +64,11 @@ class SettingsRepository(private val context: Context) {
 
     fun setTwoFingerSwipeGestureEnabled(enabled: Boolean) {
         preferences.edit().putBoolean(KEY_TWO_FINGER_SWIPE_GESTURE_ENABLED, enabled).apply()
+        notifyTopContentChanged()
+    }
+
+    fun setTwoFingerSwipeBlockGames(enabled: Boolean) {
+        preferences.edit().putBoolean(KEY_TWO_FINGER_SWIPE_BLOCK_GAMES, enabled).apply()
         notifyTopContentChanged()
     }
 
@@ -174,6 +181,7 @@ class SettingsRepository(private val context: Context) {
         const val KEY_SWAP_ANIMATION_DURATION_MS = "window_swap_animation_duration_ms"
         const val KEY_BOTTOM_CORNER_GESTURE_ENABLED = "bottom_corner_gesture_enabled"
         const val KEY_TWO_FINGER_SWIPE_GESTURE_ENABLED = "two_finger_swipe_gesture_enabled"
+        const val KEY_TWO_FINGER_SWIPE_BLOCK_GAMES = "two_finger_swipe_block_games"
         const val DEFAULT_TOP_TITLE = ""
         const val COMPONENT_SEPARATOR = "\n"
         const val MAX_TOP_APPS = 36

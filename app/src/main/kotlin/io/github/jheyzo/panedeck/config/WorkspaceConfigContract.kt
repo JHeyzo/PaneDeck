@@ -36,6 +36,7 @@ data class WorkspaceTopConfig(
     val swapAnimationDurationMs: Int = WorkspaceConfigContract.DEFAULT_SWAP_ANIMATION_DURATION_MS,
     val bottomCornerGestureEnabled: Boolean = true,
     val twoFingerSwipeGestureEnabled: Boolean = true,
+    val twoFingerSwipeBlockGames: Boolean = true,
 )
 
 object WorkspaceConfigContract {
@@ -53,6 +54,7 @@ object WorkspaceConfigContract {
     const val EXTRA_TEXT_BOLD = "io.github.jheyzo.panedeck.extra.TOP_TEXT_BOLD"
     const val EXTRA_BOTTOM_CORNER_GESTURE_ENABLED = "io.github.jheyzo.panedeck.extra.BOTTOM_CORNER_GESTURE_ENABLED"
     const val EXTRA_TWO_FINGER_SWIPE_GESTURE_ENABLED = "io.github.jheyzo.panedeck.extra.TWO_FINGER_SWIPE_GESTURE_ENABLED"
+    const val EXTRA_TWO_FINGER_SWIPE_BLOCK_GAMES = "io.github.jheyzo.panedeck.extra.TWO_FINGER_SWIPE_BLOCK_GAMES"
     const val EXTRA_SLOT_BACKGROUND_SWIPE_ENABLED = "io.github.jheyzo.panedeck.extra.SLOT_BACKGROUND_SWIPE_ENABLED"
     const val EXTRA_AUTO_MINIMIZE_MAIN = "io.github.jheyzo.panedeck.extra.AUTO_MINIMIZE_MAIN_ON_TOP_APP_SWITCH"
     const val EXTRA_NAVIGATION_BUTTONS_ENABLED = "io.github.jheyzo.panedeck.extra.NAVIGATION_BUTTONS_ENABLED"
@@ -105,6 +107,7 @@ class WorkspaceConfigReceiver : BroadcastReceiver() {
                 putBoolean(WorkspaceConfigContract.EXTRA_PANE_ROUNDED, settings.paneRounded)
                 putBoolean(WorkspaceConfigContract.EXTRA_BOTTOM_CORNER_GESTURE_ENABLED, settings.bottomCornerGestureEnabled)
                 putBoolean(WorkspaceConfigContract.EXTRA_TWO_FINGER_SWIPE_GESTURE_ENABLED, settings.twoFingerSwipeGestureEnabled)
+                putBoolean(WorkspaceConfigContract.EXTRA_TWO_FINGER_SWIPE_BLOCK_GAMES, settings.twoFingerSwipeBlockGames)
                 putInt(WorkspaceConfigContract.EXTRA_SWAP_ANIMATION_DURATION_MS, settings.swapAnimationDurationMs)
                 putString(WorkspaceConfigContract.EXTRA_LANGUAGE_TAG, AppLanguage.selectedTag(context))
                 putStringArrayList(
@@ -249,6 +252,9 @@ object WorkspaceConfigClient {
             ) ?: true,
             twoFingerSwipeGestureEnabled = extras?.getBoolean(
                 WorkspaceConfigContract.EXTRA_TWO_FINGER_SWIPE_GESTURE_ENABLED, true,
+            ) ?: true,
+            twoFingerSwipeBlockGames = extras?.getBoolean(
+                WorkspaceConfigContract.EXTRA_TWO_FINGER_SWIPE_BLOCK_GAMES, true,
             ) ?: true,
             swapAnimationDurationMs = WorkspaceConfigContract.normalizeSwapAnimationDurationMs(
                 extras.getInt(WorkspaceConfigContract.EXTRA_SWAP_ANIMATION_DURATION_MS,
