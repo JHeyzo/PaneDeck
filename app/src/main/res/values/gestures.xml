@@ -4,4 +4,6 @@
     <string name="bottom_corner_gesture_summary">Swipe diagonally inward and up from either bottom corner, about 45 degrees, to open or close the workspace.</string>
     <string name="two_finger_swipe_gesture_title">Two-finger swipe gesture</string>
     <string name="two_finger_swipe_gesture_summary">Swipe up or down with two fingers together to open or close the workspace.</string>
+    <string name="two_finger_block_games_title">Block in games</string>
+    <string name="two_finger_block_games_summary">When a recognised game is in the foreground, the two-finger swipe does nothing.</string>
 </resources>
